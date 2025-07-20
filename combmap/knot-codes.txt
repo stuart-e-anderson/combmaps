@@ -1,0 +1,39 @@
+Knots can represented with 4-regular planar graphs, an Euler circuit as an alternating knot.  Im not sure this covers all alternating knots as some knots have digons. 
+
+An Euler path, in a graph or multigraph, is a walk through the graph which uses every edge exactly once. 
+An Euler circuit is an Euler path which starts and stops at the same vertex.
+If we start at a vertex and trace along edges to get to other vertices, we create a walk through the graph. More precisely, a walk in a graph is a sequence of vertices such that every vertex in the sequence is adjacent to the vertices before and after it in the sequence. If the walk travels along every edge exactly once, then the walk is called an Euler path (or Euler walk). If, in addition, the starting and ending vertices are the same (so you trace along every edge exactly once and end up where you started), then the walk is called an Euler circuit (or Euler tour).
+
+
+
+Classical Gauss codes, which are sequences of integers that encode the crossings that you pass through as you traverse the knot from an arbitrary starting point. Crossings are numbered consecutively from 1 to n (but in any order), and each crossing is written as a positive or negative integer according to whether you pass over or under it.
+
+An example of a Gauss code is 1 -2 3 -1 2 -3, which represents the trefoil.
+
+Classical Gauss codes are commonly used in the literature. Be aware that they do not specify the orientation of the diagram, and (more importantly) for composite knots they may not even uniquely define the topology of the knot. If this is a problem, consider using either oriented Gauss codes or knot signatures instead.
+
+Oriented Gauss codes, which likewise encode the crossings that you pass through as you traverse the knot, but this time with more precise information. Again the crossings are numbered consecutively from 1 to n (but in any order); each crossing is then written with a sign (plus or minus), an arrow (either less-than or greater-than), and an integer. The sign indicates whether you pass over (+) or under (-) the crossing, and the arrow indicates whether the other strand of the crossing passes from right-to-left (<) or left-to-right (>).
+
+An example is +>1 -<2 +>3 -<1 +>2 -<3, which represents the left-hand trefoil.
+
+Oriented Gauss codes were introduced by Andreeva et al., and are described as part of their Book Knot Simplifier. Unlike classical Gauss codes, they preserve the orientation of the diagram, and they correctly identify the topology of composite knots.
+
+Dowker-Thistlethwaite notation, which is essentially a more streamlined variant of classical Gauss codes. They have played an important historical role in knot tabulation; see Adams [Ada94] for some history and also a precise description of the format. The numerical variant involves a sequence of n even signed integers. The alphabetical variant transforms this into a compact text string by replacing the positive integers 2,4,6,… with lower-case letters a,b,c,…, and replacing the negative integers -2,-4,-6,… with upper-case letters A,B,C,…. The alphabetical variant can only be used to describe knots with 26 crossings or fewer.
+
+Examples are 4 6 2 or bca, both of which represent the trefoil.
+
+Like classical Gauss codes, Dowker-Thistlethwaite notation does not specify the orientation of the diagram, and (more importantly) for composite knots may not uniquely define the topology of the knot. If this is a problem, consider using either oriented Gauss codes or knot signatures instead. 
+
+Planar diagram codes, which are sequences of 4-tuples that encode the local connections around each crossing. Unlike the other code types described here, planar diagram codes can encode multiple-component links.
+
+In a planar diagram code for a link with n crossings, the strands are numbered 1,…,2n. Each 4-tuple represents a single crossing, and lists the four strands that meet at that crossing in counter-clockwise order, beginning with the incoming lower strand. Regina will number the crossings 0,…,(n-1) in the same order as the tuples are presented.
+
+An example of a planar diagram code is [[1,4,2,5], [3,6,4,1], [5,2,6,3]], which represents the left-hand trefoil.
+
+You may separate the integers with any combination of whitespace, commas, round/square/curly brackets, and/or the special symbols PD, X, Xp, Xm or P (these symbols appear in other sources, but have no special meaning for Regina). So, for example, the left-hand trefoil above could instead be presented as PD[X[1,5,2,4], X[3,1,4,6], X[5,3,6,2]], or just 1 5 2 4 3 1 4 6 5 3 6 2.
+
+Planar diagram codes are used in the Knot Atlas (for example). They have two limitations: they cannot represent zero-crossing unknot components; also, if the link has a component that consists entirely of over-crossings (i.e., an unknot placed “on top” of the diagram) then the orientation of that component is not uniquely determined. 
+
+I think Oriented Gauss codes and possibly Planar diagram codes might be most useful to me
+
+is there also a topological code  where  each under/over is a hole in the surface, adding a torus to a sphere each time, that might be something I wish to do more work on later.

@@ -1,0 +1,16 @@
+# Python virtual environment
+.venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Other projects and files
+copilot/
+graphs/
+j/
+monster/
+ries/
+rle/
+js.sh
+*.pdf

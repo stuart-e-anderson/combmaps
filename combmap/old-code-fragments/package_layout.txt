@@ -1,0 +1,9 @@
+vennmaplib/
+├── __init__.py
+├── parser.py          # Plantri reader functions
+├── combinatorial.py   # Dart + CombinatorialMap
+├── filters.py         # Valence, quadrangulation, etc.
+├── duality.py         # Dual graph logic
+└── examples/
+    └── venn_demo.py   # Example usage
+
