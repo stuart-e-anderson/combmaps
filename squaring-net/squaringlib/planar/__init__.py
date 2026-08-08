@@ -10,12 +10,14 @@ Provides:
 import io
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 
 from combmapcore.dual import compute_dual_adjacency
 from combmapcore.parser import plantri_graphs_planarcode_stream
 
 __all__ = [
     "run_plantri",
+    "run_plantri_sharded",
     "parse_planar_code",
     "write_planar_code",
     "dual_rotation_system",
@@ -28,18 +30,53 @@ PLANTRI_BIN = shutil.which("plantri") or "/usr/local/bin/plantri"
 LABELG_BIN = shutil.which("nauty-labelg") or shutil.which("labelg") or "nauty-labelg"
 
 
-def run_plantri(n, e=None, extra_args=None):
-    """Run plantri for n vertices (optionally pinned to e edges), return raw planar_code bytes."""
+def run_plantri(n, e=None, extra_args=None, res_mod=None):
+    """
+    Run plantri for n vertices (optionally pinned to e edges), return raw
+    planar_code bytes. res_mod=(res, mod) shards the enumeration itself
+    (plantri splits its search space, not just its output) -- pass the same
+    (n, e, extra_args) with every residue 0..mod-1 to get plantri's own
+    partition of the full result, verified by direct comparison against an
+    unsharded run: union of shards == unsharded output, zero overlap.
+
+    Note: plantri's res/mod is a bare positional argument straight after n
+    (`n res/mod [outfile]`), not a `-s res/mod` flag -- that flag form
+    ("-s0/4") errors out ("-/ is not permitted") on plantri 5.5.
+    """
     args = [PLANTRI_BIN, "-p"]
     if extra_args:
         args += list(extra_args)
     if e is not None:
         args.append(f"-e{e}:{e}")
     args.append(str(n))
+    if res_mod is not None:
+        res, mod = res_mod
+        args.append(f"{res}/{mod}")
     proc = subprocess.run(args, capture_output=True)
     if proc.returncode != 0:
         raise RuntimeError(f"plantri failed ({' '.join(args)}): {proc.stderr.decode()}")
     return proc.stdout
+
+
+def run_plantri_sharded(n, e=None, extra_args=None, shards=1):
+    """
+    Run plantri across `shards` residues in parallel (ThreadPoolExecutor --
+    subprocess calls release the GIL, so threads are enough, no need for
+    multiprocessing) and return the concatenated list of rotation systems.
+    shards=1 is a plain unsharded run.
+    """
+    if shards <= 1:
+        return parse_planar_code(run_plantri(n, e=e, extra_args=extra_args))
+
+    with ThreadPoolExecutor(max_workers=shards) as pool:
+        futures = [
+            pool.submit(run_plantri, n, e=e, extra_args=extra_args, res_mod=(r, shards))
+            for r in range(shards)
+        ]
+        all_rotations = []
+        for future in futures:
+            all_rotations.extend(parse_planar_code(future.result()))
+    return all_rotations
 
 
 def parse_planar_code(binary_data):

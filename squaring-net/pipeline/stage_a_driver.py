@@ -36,9 +36,9 @@ from squaringlib.planar import (
     PLANTRI_BIN,
     canonical_hash_codes_batch,
     dual_rotation_system,
-    parse_planar_code,
-    run_plantri,
+    run_plantri_sharded,
     valid_vf_classes,
+    write_planar_code,
 )
 
 GRAPH_FIELDS = [
@@ -53,11 +53,13 @@ def plantri_version():
     return first_line.strip()
 
 
-def process_v_gt_f_class(v, f, e):
+def process_v_gt_f_class(v, f, e, shards=1):
     """v > f: generate directly, derive the (f, v) dual for every graph. No dedup needed (dual vertex count f != v)."""
     invocation = [PLANTRI_BIN, "-p", "-c3", f"-e{e}:{e}", str(v)]
-    raw = run_plantri(v, e=e, extra_args=["-c3"])
-    rotations = parse_planar_code(raw)
+    if shards > 1:
+        invocation.append(f"[sharded x{shards}]")
+    rotations = run_plantri_sharded(v, e=e, extra_args=["-c3"], shards=shards)
+    raw = write_planar_code(rotations)
 
     hashes = canonical_hash_codes_batch(rotations)
     dual_hashes = canonical_hash_codes_batch([dual_rotation_system(r) for r in rotations])
@@ -75,11 +77,13 @@ def process_v_gt_f_class(v, f, e):
     return raw, invocation, rows, hashes
 
 
-def process_v_eq_f_class(v, e):
-    """v == f: dedup self-dual and paired graphs by canonical hash within the single plantri run."""
+def process_v_eq_f_class(v, e, shards=1):
+    """v == f: dedup self-dual and paired graphs by canonical hash within the single (possibly sharded) plantri run."""
     invocation = [PLANTRI_BIN, "-p", "-c3", f"-e{e}:{e}", str(v)]
-    raw = run_plantri(v, e=e, extra_args=["-c3"])
-    rotations = parse_planar_code(raw)
+    if shards > 1:
+        invocation.append(f"[sharded x{shards}]")
+    rotations = run_plantri_sharded(v, e=e, extra_args=["-c3"], shards=shards)
+    raw = write_planar_code(rotations)
 
     hashes = canonical_hash_codes_batch(rotations)
     dual_hashes = canonical_hash_codes_batch([dual_rotation_system(r) for r in rotations])
@@ -121,14 +125,14 @@ def process_v_eq_f_class(v, e):
     return raw, invocation, rows, hashes
 
 
-def run_stage_a(order, out_dir):
+def run_stage_a(order, out_dir, shards=1):
     e = order + 1
     classes = valid_vf_classes(e)
     order_dir = Path(out_dir) / f"order={order}"
     order_dir.mkdir(parents=True, exist_ok=True)
 
     provenance = {
-        "stage": "A", "order": order, "num_edges": e,
+        "stage": "A", "order": order, "num_edges": e, "shards": shards,
         "plantri_version": plantri_version(), "classes": [],
     }
     all_rows = []
@@ -137,9 +141,9 @@ def run_stage_a(order, out_dir):
         if v < f:
             continue  # derived from (f, v) above, never separately run through plantri
         if v > f:
-            raw, invocation, rows, hashes = process_v_gt_f_class(v, f, e)
+            raw, invocation, rows, hashes = process_v_gt_f_class(v, f, e, shards=shards)
         else:
-            raw, invocation, rows, hashes = process_v_eq_f_class(v, e)
+            raw, invocation, rows, hashes = process_v_eq_f_class(v, e, shards=shards)
 
         class_file = order_dir / f"class_v{v}_f{f}.planar_code"
         class_file.write_bytes(raw)
@@ -168,9 +172,13 @@ def main():
     parser = argparse.ArgumentParser(description="Stage A -- plantri driver (SPEC-1)")
     parser.add_argument("order", type=int, help="target order (num_edges = order + 1)")
     parser.add_argument("--out-dir", default="data/planar_code", help="output root directory")
+    parser.add_argument("--shards", type=int, default=1,
+                         help="run plantri's own res/mod sharding across this many parallel "
+                              "processes per class (verified: union of shards == unsharded "
+                              "output, zero overlap). Match to available CPU cores.")
     args = parser.parse_args()
 
-    provenance, rows = run_stage_a(args.order, args.out_dir)
+    provenance, rows = run_stage_a(args.order, args.out_dir, shards=args.shards)
     generated = sum(1 for r in rows if r["dual_of_hash_code"] == "")
     elided = len(rows) - generated
     self_dual = sum(1 for r in rows if r["is_self_dual"])
