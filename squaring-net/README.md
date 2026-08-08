@@ -28,9 +28,18 @@ plantri driver ──▶ sqt (frozen) ──▶ typed tablecode files ──▶ 
    Stage A            Stage B              (files)              Stage C      Stage D
 ```
 
-All four stages are built and validated end-to-end through **order 21**
-(the Duijvestijn 112² regression order). Orders 9, 11, 13, 21 have been
-generated, loaded, and pass every SPEC-2 gate check.
+All four stages are built and validated end-to-end. **SPSR counts match
+OEIS A002839 exactly for every order backfilled so far: 9, 10, 11, 12, 13,
+14, 15, 16, 17, 18, 19, 21** (2, 6, 22, 67, 213, 744, 2609, 9016, 31426,
+110381, 390223, 4931308 — order 21's SPSR+SPSS = 4,931,307+1, matching the
+documented convention that a square counts as a rectangle for SPSR purposes
+from order 21 on). Order 20 backfill in progress. This is a strong
+independent correctness signal — SPSR is the largest, most sensitive type
+bucket, and 12 consecutive exact matches against a source the pipeline never
+saw is not coincidence.
+
+Orchestration: `pipeline/run_order.sh <order>` runs Stage A → B → C for one
+order end to end (idempotent — skips steps whose output already exists).
 
 ### Stage A — `pipeline/stage_a_driver.py`
 Enumerates every valid `(v, f)` planar-map class for a target order and runs
@@ -48,11 +57,13 @@ Writes, per order, into `data/planar_code/order=<N>/`:
 - `class_v{v}_f{f}.planar_code` — raw plantri output per class actually run
 - `class_v{v}_f{f}.planar_code.hashes.txt` — nauty canonical hash per graph,
   one per line, in file order (Stage B's graph-linkage sidecar)
-- `graphs.csv` — one row per graph (generated + elided dual), feeds Stage C
+- `graphs.csv` — one row per graph, including `v<f`-derived duals for `v>f`
+  classes (never separately solved, `dual_of` records the relationship)
 - `provenance.json` — plantri version + exact invocation per class
 
-**Known cost:** order 21 takes ~11 minutes (plantri's own combinatorial cost
-on the `v=14` class, not driver overhead). Orders beyond ~24 will need
+**Known cost:** grows fast with order — order 17 is ~6s, order 19 ~76s,
+order 20/21 are ~9-11 minutes (plantri's own combinatorial cost on the
+largest `v` class, not driver overhead). Orders beyond ~24 will need
 sharding via plantri's `-s{res}/{mod}` flag, not yet implemented.
 
 ### Stage B — `pipeline/stage_b_sqt.cpp`
@@ -69,12 +80,6 @@ cd pipeline && g++ -O3 -Wall -std=c++11 stage_b_sqt.cpp -o sqt \
     -lboost_system -lboost_serialization -lm -lopenblas -llapack
 ```
 
-Run per class file, in the order directory:
-```bash
-cd data/planar_code/order=<N>
-for f in class_v*.planar_code; do ../../../pipeline/sqt -scpirS "$f"; done
-```
-
 ### Stage C — `pipeline/stage_c_loader.py`
 Loads one order's Stage A/B output into Postgres. Resolves
 `graph_hashcode -> graphs.graph_id`, enforces `graph_id NOT NULL` (hard
@@ -88,24 +93,25 @@ export PGHOST=localhost PGDATABASE=squaring_net PGUSER=squaring_admin PGPASSWORD
 python3 pipeline/stage_c_loader.py <order> --out-dir data/planar_code
 ```
 
-**Important — elision filtering:** for `v==f`-class graph/dual pairs, both
-members physically sit in the same plantri file, so `sqt` (which has no
-concept of "elided") genuinely solves both. The loader must skip dissection
-rows sourced from the elided member (`graphs.dual_of IS NOT NULL`) or it
-double-counts. `v>f` pairs don't need this — the elided `v<f` dual is only
-ever derived, never fed to `sqt`, so it can't appear in a tablecode file.
-Verified empirically (8/8 sampled pairs, run through independent `sqt`
-processes, produce identical width/height-swapped dissection sets) —
-dropping the elided side loses nothing. See `pipeline/diag_pair_check.py`
-for the diagnostic.
+**Every graph `sqt` solves gets its dissections loaded — no dedup by
+`dual_of`.** An earlier version of this loader skipped dissection rows from
+a `v==f`-class graph's elided dual partner, reasoning "a graph and its dual
+give the same dissections rotated 90°" — verified geometrically true
+(`pipeline/diag_pair_check.py`: real `(x,y,size)` placement equality under
+all 8 dihedral transforms, 8/8 sampled pairs matched) but **wrong for
+cataloguing purposes**: OEIS A002839 counts both members of a non-self-dual
+pair separately. Removing the filter is what produced the 12-order exact
+match streak above. `dual_of` is now purely descriptive metadata (still
+useful — e.g. SPEC-4's `graph_names` curation can name either member of a
+pair). See `SPEC-2-reconciliation.md` v0.3 for the full writeup.
 
 ### Stage D — the SPEC-2 gate
 Not a script — a set of SQL checks run manually (or from `psql`) against the
 loaded partition before it's marked committed. See `../SPEC-2-reconciliation.md`
-§3–§6 for the runnable SQL. All pass at order 21:
-- Reconciliation upper bound (§3): `dissections ≤ e·graphs(k)` — holds
-  (fraction of ceiling used: 0.20 at order 9 up to 0.73 at order 21, climbing
-  with order as expected, not a fixed target)
+§3–§6 for the runnable SQL. Passing on every loaded order:
+- Reconciliation upper bound (§3): `dissections ≤ e·graphs(k)` never
+  exceeded (fraction of ceiling used climbs smoothly from 0.13 at order 7 to
+  ~0.50 at order 21 — diagnostic, not a fixed target)
 - Zero NULL `graph_id`, zero rows above the ingested ceiling (§4)
 - Duijvestijn 112² present, typed SPSS, full 22-dissection family resolves
   via `graph_id` (§6) — the exact regression the old pipeline failed
@@ -118,15 +124,21 @@ loaded partition before it's marked committed. See `../SPEC-2-reconciliation.md`
 2. **`nauty-labelg` subprocess-per-graph.** Didn't scale past a few hundred
    graphs; batched into one process per class (all graph6 lines piped
    through a single `labelg` call).
-3. **Stage C elision gap** (see above) — the actual cause of the SPEC-2
-   reconciliation identity failing at first. Not a data-loss bug once fixed,
-   but a real double-counting bug before the fix.
+3. **Stage C elision — added, then reversed.** First diagnosed as a
+   double-counting bug (both `v==f` pair members were getting loaded) and
+   "fixed" by filtering the elided side out. That filter was itself wrong:
+   verified against OEIS A002839, both pair members are supposed to be
+   counted separately (see Stage C above). The filter is now removed
+   entirely — this was the single biggest correctness finding of the build.
 4. **`ratio_cf SMALLINT[]` overflow.** A continued-fraction term of 32,821
    exceeded `smallint`'s range at order 21. Widened to `INTEGER[]`.
 5. **Loader crash on duplicate `bouwkamp_code`.** SPEC-1 frames the UNIQUE
    constraint as a "cross-class dedup safety net" (expected occasional hits,
    not a hard error) — the loader now stages into a temp table and does
-   `INSERT ... ON CONFLICT DO NOTHING` instead of a raw `COPY`.
+   `INSERT ... ON CONFLICT DO NOTHING` instead of a raw `COPY`. This dedup
+   is real and load-bearing: orders 17-21 each rejected 6-490 genuine
+   cross-class duplicates, and removing them is what makes SPSR match OEIS
+   exactly rather than overshoot by a handful.
 6. **SPEC-2's reconciliation formula was wrong.** v0.1 asserted
    `Σdissections ≈ 4·graphs(k)`. Verified false against order-21 data —
    sampled graphs independently produced 11–22 tablecode rows each, not 4,
@@ -134,8 +146,7 @@ loaded partition before it's marked committed. See `../SPEC-2-reconciliation.md`
    truth (confirmed by Stuart): every edge of a graph can be the battery
    edge, so a graph with `e` edges yields up to `e` distinct dissections.
    SPEC-2 now checks `dissections ≤ e·graphs(k)` as an upper bound, not a
-   target ratio. See `SPEC-2-reconciliation.md` v0.2 changelog for the full
-   writeup.
+   target ratio.
 
 ## Not built yet
 
@@ -147,10 +158,9 @@ loaded partition before it's marked committed. See `../SPEC-2-reconciliation.md`
   already exists and is what the renderer should call, per SPEC-4)
 - **Flask website** — `website/routes.py` is a stub, no templates/static
   content yet
-- **`ref_counts` catalogue** — SPEC-2 §5 needs OEIS/catalogue values filled
-  in and re-verified; today's SPSR investigation suggests the existing
-  order-9–23 reference values (only order 24 has a documented verification
-  history) may need re-checking, not just trusted as-is
+- **`ref_counts` catalogue** — SPEC-2 §5 still needs the table actually
+  populated (OEIS A002839 values now confirmed correct through order 21 via
+  this build's investigation — see above — but not yet inserted as rows)
 - **Open questions:** Q4 (order ceiling — 24 safe floor, 25 with the schema
   diet, per SPEC-1), and whether `corner_elements` needs a documented
   tie-break for degenerate/self-dual corner placements (SPEC-4 open item)
@@ -164,8 +174,10 @@ rows, abandoned per SPEC-2 — not salvageable, missing graph_id linkage and
 built on the buggy enumeration). Schema is applied from `db/schema/*.sql` in
 order: `graphs.sql`, `graph_names.sql`, `dissections.sql`, `reconciliation.sql`.
 
-Currently loaded: orders 9, 11, 13, 21 (test/validation data, not a
-systematic order-by-order backfill yet).
+Currently loaded: orders 7, 9-19, 21 (order 20 backfill in progress). All
+`order_counts.status = 'pending'` — none formally marked `'committed'` yet
+(that's the last step of the SPEC-2 gate procedure, not yet run as a
+deliberate sign-off pass).
 
 ## Environment
 

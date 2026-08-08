@@ -2,8 +2,16 @@
 """
 Diagnostic (not part of the frozen pipeline): pick real (stored, elided)
 graph/dual pairs from an order's v==f class and check whether they actually
-produce the same dissections (width/height swapped, same element multiset --
-"the same dissection rotated 90 degrees") or genuinely different ones.
+produce the same dissections (true geometric rotation/reflection of each
+other) or genuinely different ones.
+
+v1 of this check compared sorted element multisets, which is inadequate --
+tablecodes are ORDERED (element position encodes the actual layout), so two
+dissections with the same size inventory can still be geometrically
+different. This version compares actual (x, y, size) placements under all 8
+dihedral transforms (4 rotations x reflect-or-not) via
+squaringlib.geometry.place_elements(), which is a real geometric equality
+check, not a bag-of-sizes fingerprint.
 
 Isolates whether Stage C's elision fix is correct (SPEC-1: "process only one
 of each graph/dual pair -- they yield the same dissections up to rotation")
@@ -14,9 +22,10 @@ Usage: python3 diag_pair_check.py <order> --out-dir data/planar_code -n 8
 import argparse
 import csv
 import subprocess
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
+from squaringlib.geometry import place_elements
 from squaringlib.planar import parse_planar_code, write_planar_code
 
 SQT_BIN = Path(__file__).parent / "sqt"
@@ -77,7 +86,7 @@ def run_sqt_alone(sqt_bin, work_dir, name, hash_code, rotation):
 
 
 def read_lines_by_hash(work_dir, planar_file_name):
-    """hash -> list of (d_type, width, height, elements)."""
+    """hash -> list of (d_type, width, height, elements-in-canonical-order)."""
     result = defaultdict(list)
     for suffix in TYPE_SUFFIXES:
         f = work_dir / f"{planar_file_name}-{suffix}.txt"
@@ -88,14 +97,42 @@ def read_lines_by_hash(work_dir, planar_file_name):
                 continue
             parts = line.split()
             hash_code, order, width, height = parts[0], int(parts[1]), int(parts[2]), int(parts[3])
-            elements = tuple(sorted(int(x) for x in parts[4:]))
+            elements = tuple(int(x) for x in parts[4:])  # order preserved -- position encodes layout
             result[hash_code].append((suffix.upper(), width, height, elements))
     return result
 
 
-def rotation_invariant_fingerprint(d_type, width, height, elements):
-    """(d_type, {width,height} unordered, sorted element multiset) -- invariant under a 90-degree rotation."""
-    return (d_type, frozenset((width, height)) if width != height else (width, height), elements)
+def dihedral_placements(width, height, elements):
+    """
+    All 8 dihedral transforms (4 rotations x reflect-or-not) of a dissection's
+    actual square placement, as (transformed_width, transformed_height,
+    frozenset of (x, y, size)) -- true geometric equality, not a size fingerprint.
+    """
+    placed = place_elements(elements, width, height)
+    squares = [(sq["x"], sq["y"], sq["size"]) for sq in placed]
+
+    variants = []
+    w, h = width, height
+    cur = squares
+    for _ in range(4):
+        # current rotation, unreflected and reflected (flip x within current w)
+        variants.append((w, h, frozenset(cur)))
+        variants.append((w, h, frozenset((w - x - s, y, s) for x, y, s in cur)))
+        # rotate 90 deg CW into an h x w canvas: (x,y,s) -> (h-y-s, x, s)
+        cur = [(h - y - s, x, s) for x, y, s in cur]
+        w, h = h, w
+    return variants
+
+
+def same_dissection(width_a, height_a, elements_a, width_b, height_b, elements_b):
+    """True if (width_b, height_b, elements_b) is some dihedral transform of (width_a, height_a, elements_a)."""
+    target = (width_b, height_b, frozenset(
+        (sq["x"], sq["y"], sq["size"]) for sq in place_elements(elements_b, width_b, height_b)
+    ))
+    for w, h, squares in dihedral_placements(width_a, height_a, elements_a):
+        if (w, h, squares) == target:
+            return True
+    return False
 
 
 def main():
@@ -126,23 +163,39 @@ def main():
         rows_a = read_lines_by_hash(work_dir, file_a.name).get(h_a, [])
         rows_b = read_lines_by_hash(work_dir, file_b.name).get(h_b, [])
 
-        fp_a = Counter(rotation_invariant_fingerprint(*row) for row in rows_a)
-        fp_b = Counter(rotation_invariant_fingerprint(*row) for row in rows_b)
+        # multiset match: every stored dissection must pair, under some dihedral
+        # transform, with a distinct (not-yet-consumed) elided dissection of the
+        # same d_type, and the counts must match exactly.
+        unmatched_b = list(rows_b)
+        unmatched_a = []
+        for d_type_a, width_a, height_a, elements_a in rows_a:
+            found_idx = None
+            for i, (d_type_b, width_b, height_b, elements_b) in enumerate(unmatched_b):
+                if d_type_a != d_type_b:
+                    continue
+                if same_dissection(width_a, height_a, elements_a, width_b, height_b, elements_b):
+                    found_idx = i
+                    break
+            if found_idx is not None:
+                unmatched_b.pop(found_idx)
+            else:
+                unmatched_a.append((d_type_a, width_a, height_a, elements_a))
 
-        same = fp_a == fp_b
+        same = not unmatched_a and not unmatched_b
         matches += same
         mismatches += not same
         print(f"pair {idx}: stored={h_a} ({len(rows_a)} rows, run alone) "
               f"elided={h_b} ({len(rows_b)} rows, run alone) -- "
-              f"{'SAME (rotation of each other)' if same else 'DIFFERENT'}")
+              f"{'SAME (true geometric rotation of each other)' if same else 'DIFFERENT'}")
         if not same:
-            only_a = fp_a - fp_b
-            only_b = fp_b - fp_a
-            print(f"    only in stored:  {dict(list(only_a.items())[:3])}")
-            print(f"    only in elided:  {dict(list(only_b.items())[:3])}")
+            print(f"    unmatched in stored: {len(unmatched_a)}  unmatched in elided: {len(unmatched_b)}")
+            if unmatched_a:
+                print(f"    e.g. stored-only: {unmatched_a[0]}")
+            if unmatched_b:
+                print(f"    e.g. elided-only: {unmatched_b[0]}")
 
     print(f"\n{matches}/{len(pairs)} pairs match (stored's dissections == elided's, "
-          f"90-degree rotated); {mismatches} differ")
+          f"true 90-degree geometric rotation); {mismatches} differ")
 
 
 if __name__ == "__main__":

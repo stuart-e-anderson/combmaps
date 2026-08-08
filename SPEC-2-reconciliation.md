@@ -1,6 +1,6 @@
 # SPEC-2 — Reconciliation gate (runnable SQL)
 
-**Version 0.2 · 2026-08-08 · one representative stored per graph/dual pair, N corrected from a flat x4 to an e-per-graph upper bound**
+**Version 0.3 · 2026-08-09 · every solved graph's dissections load, `dual_of` is descriptive metadata only; N corrected from a flat x4 to an e-per-graph upper bound**
 **Runs against:** the clean schema (SPEC-3), populated only by the frozen pipeline (SPEC-1).
 **Role:** forward gate only. No regenerated partition commits until green (SPEC-1 Stage D). The old database attempts are archived and dropped without analysis — nothing here inspects or repairs them.
 
@@ -8,15 +8,17 @@
 
 ## The identity, and why the gate measures rather than asserts
 
-**Correction (v0.2):** the original v0.1 draft asserted `Σdissections ≈ 4·graphs(k)`, on the theory that each stored graph contributes a flat "4 rootings". Verified wrong against real order-21 data (build session 2026-08-08): sampled graphs independently produced 11-22 tablecode rows each, not 4, and the ratio actually *grows* with order (0.20 at order 9, 0.73 at order 21) rather than holding near a constant — ruling out small-sample noise. Ground truth, per Stuart: **every edge of a graph can be the battery edge**, so a graph with `e` edges yields up to `e` distinct dissections (fewer only because some battery-edge choices fail the `s1<=0 || s2<=0` validity check inside `sqt`, or because two choices canonicalise to a byte-identical tablecode and `sqt`'s own `map`/`std::set` naturally collapses them — no automorphism computation, no orbit theory, just literal string dedup, same as the dual-pair elision already does). So the corrected identity is an **upper bound**, not a target ratio:
+**Correction (v0.3) — reverses v0.2's elision fix.** v0.2 had Stage C's loader skip dissection rows from a `v==f`-class graph's elided dual partner (`graphs.dual_of IS NOT NULL`), reasoning that "a graph and its dual give the same dissections rotated 90°" — verified true with a rigorous geometric test (real `(x,y,size)` placement equality under all 8 dihedral transforms, not just a size-multiset fingerprint: 8/8 sampled pairs matched exactly). But geometric congruence isn't the cataloguing convention: **OEIS A002839** (independently fetched and cross-checked — its values match SPEC-2's own reference table exactly, including the corrected order-24 figure, unlike Stuart's older squaring.net catalogue page which still shows the old wrong 228,130,900) counts both members of a non-self-dual `v==f` pair as **separate** entries. Removing the elision filter entirely made every tested order (9, 10, 11, 12, 13, 14, 15) match OEIS **exactly** — 2, 6, 22, 67, 213, 744, 2609. Graph and dual are catalogued as distinct combinatorial objects regardless of their dissections being congruent under rotation. `graphs.dual_of` stays as descriptive metadata (useful for SPEC-4 curation) but is no longer a load-time filter. See `db/schema/graphs.sql`'s header comment for the same note at the schema level.
+
+This does **not** extend to `v>f` classes: the `v<f` side there is only ever derived (dualised in Python), never fed to `sqt` at all, so it genuinely has zero dissection rows — not because of any filtering, but because it was never solved. Orders with only `v>f` classes (10, 12, 14 — odd `e`, no `v==f` class possible) matched OEIS both before and after this correction, confirming that half of the design needs no change.
+
+**The upper-bound identity** (from v0.2, still correct): the v0.1 draft asserted `Σdissections ≈ 4·graphs(k)`, on the theory that each stored graph contributes a flat "4 rootings". Verified wrong against real order-21 data: sampled graphs independently produced 11-22 tablecode rows each, not 4, and the ratio actually *grows* with order (0.20 at order 9, 0.73 at order 21) rather than holding near a constant — ruling out small-sample noise. Ground truth, per Stuart: **every edge of a graph can be the battery edge**, so a graph with `e` edges yields up to `e` distinct dissections (fewer only because some battery-edge choices fail the `s1<=0 || s2<=0` validity check inside `sqt`, or because two choices canonicalise to a byte-identical tablecode and `sqt`'s own `map`/`std::set` naturally collapses them — no automorphism computation, no orbit theory, just literal string dedup). So the corrected identity is an **upper bound**, not a target ratio:
 
 ```
-Σ(all d_types + DEGN, order k)  ≤  e(order k) · graphs(order k)         [e = order k + 1]
+Σ(all d_types + DEGN, order k)  ≤  e(order k) · graphs(order k)         [e = order k + 1, graphs(k) = ALL graphs, no dual_of filter]
 ```
 
-This bound held cleanly across every order tested (9, 11, 13, 21) once the Stage C elision bug (below) was fixed. There is no fixed expected ratio to assert — the fraction of the `e·graphs` ceiling that survives as distinct, valid dissections is order- and topology-dependent (more battery-edge choices fail validity at small orders), so the gate reports the ratio as **diagnostic**, not pass/fail-banded, and only hard-fails if the ceiling is *exceeded* (a mathematical impossibility signalling real corruption — e.g. a graph's `num_edges` mismatched against its own dissections, or a loader regression reintroducing duplicate rows).
-
-**Elision bug found and fixed in the same session:** Stage C's loader must skip dissection rows sourced from an *elided* graph (`graphs.dual_of IS NOT NULL`). For `v>f` classes this is automatic (the elided `v<f` dual is only ever derived, never fed to `sqt`, so it can't appear in a tablecode file). But for `v==f` classes, **both** members of a non-self-dual pair physically sit in the same plantri file, so `sqt` — which has no concept of "elided" — genuinely solves both, producing real, duplicate-of-the-partner's-rotated-dissections output that the loader must filter out. Verified empirically: 8/8 sampled `v==f` pairs, run through independent `sqt` processes, produced identical (width/height-swapped) dissection sets — confirming a stored graph and its elided partner really are "the same dissection rotated 90°", so dropping the elided side loses nothing.
+There is no fixed expected ratio to assert — the fraction of the `e·graphs` ceiling that survives as distinct, valid dissections is order- and topology-dependent (more battery-edge choices fail validity at small orders), so the gate reports the ratio as **diagnostic**, not pass/fail-banded, and only hard-fails if the ceiling is *exceeded* (a mathematical impossibility signalling real corruption).
 
 Two scoping facts baked into the SQL, both from your schema:
 - `graphs` has **no `order_val`** — order is `num_edges − 1`. (This is the column that errored in your Gemini session.)
@@ -72,7 +74,7 @@ CREATE TABLE IF NOT EXISTS order_counts (
 
 ## §2 — Graph counts per order
 
-Total graphs including elided duals (informational -- e.g. for `graph_names` curation, which can name either member of a pair). **§3's reconciliation uses stored graphs only** (`dual_of IS NULL`), not this total, since only the stored side is ever fed through `sqt`.
+Every graph, including `v<f`-derived duals that were never separately solved (see the v0.3 correction above -- `dual_of` no longer filters anything, it's descriptive metadata). §3 uses this same total.
 
 ```sql
 SELECT (num_edges - 1) AS order_val, count(*) AS graph_count
@@ -96,9 +98,10 @@ WITH d AS (
 g AS (
   SELECT (num_edges - 1) AS order_val, num_edges, count(*) AS graphs
   FROM graphs
-  WHERE surface_type = 'plane' AND category = 1 AND dual_of IS NULL   -- stored graphs only
-  GROUP BY num_edges
-)
+  WHERE surface_type = 'plane' AND category = 1   -- all graphs; a v<f-derived dual that was
+  GROUP BY num_edges                               -- never solved just contributes 0 dissections,
+)                                                   -- which only loosens the upper bound, never breaks it
+
 SELECT
   g.order_val,
   g.graphs,
@@ -211,7 +214,7 @@ GROUP BY d.d_type;
 ## Gate procedure (per regenerated order k)
 
 1. Load order k into its partition (SPEC-1 Stage C), DEGN rows counted into `order_counts` then dropped.
-2. Run §3 → verdict must be **OK (~4)**.
+2. Run §3 → verdict must be **OK (within ceiling)**; `dissections_incl_degn` must never exceed `e·graphs(k)`.
 3. Run §4 → (a),(c) = 0; (d) = 0; (b) scoped to `order_val=k` = 0 rows.
 4. Run §5 → zero deltas on every type with a reference.
 5. Run §6 when k=21.
@@ -219,7 +222,8 @@ GROUP BY d.d_type;
 
 ## Invariants
 - `dissections_incl_degn ≤ e·graphs(k)` on regenerated data (§3); exceeding it is impossible on a correct load and is the diagnostic signal, not tuned away.
-- Elided graphs (`dual_of IS NOT NULL`) contribute zero dissection rows -- Stage C's loader filters them out even though `v==f`-class elided partners are genuinely solved by `sqt` (see §3 correction above).
+- Every graph `sqt` actually solves gets its dissections loaded, full stop. `dual_of` is descriptive only (v0.3) -- a graph with zero dissection rows means it was never fed to `sqt` (the `v<f` side of a `v>f` class), not that its rows were filtered at load.
+- Per-order SPSR totals must match OEIS A002839 exactly where a term exists (verified 9-15 this build) -- this is now a standing regression check, not just a §5 catalogue assert.
 - DEGN counted before discard; `order_counts` is the durable record.
 - Reference counts come from OEIS/catalogue, never from the DB being tested.
 - The table-wide duplicate scan is never run unscoped in production — enforce uniqueness at load, audit per partition.

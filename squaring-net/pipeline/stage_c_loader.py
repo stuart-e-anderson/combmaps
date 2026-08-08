@@ -109,26 +109,6 @@ def hash_to_graph_id(conn, num_edges):
         return dict(cur.fetchall())
 
 
-def elided_hashes(conn, num_edges):
-    """
-    hash_codes of graphs elided by SPEC-1/2's N=4 identity (dual_of IS NOT NULL).
-    For v>f classes the elided (v<f) dual is only ever derived, never fed to sqt,
-    so it never appears in a tablecode file. But for v==f classes both pair
-    members physically sit in the same plantri file, so sqt -- which has no
-    concept of "elided" -- genuinely solves both. Without this filter the
-    loader double-counts every non-self-dual v==f pair's dissections, which is
-    exactly the inflated ratios the SPEC-2 gate caught (order 13: ratio 8.0 on
-    the stored-only denominator, i.e. both pair members' full dissection sets
-    landing in the table instead of one).
-    """
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT hash_code FROM graphs WHERE num_edges = %s AND dual_of IS NOT NULL",
-            (num_edges,),
-        )
-        return {row[0] for row in cur.fetchall()}
-
-
 TABLECODE_LINE = re.compile(r"^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.+)$")
 
 
@@ -154,12 +134,10 @@ def load_order(order, out_dir):
     try:
         num_graphs_loaded = load_graphs(conn, order_dir)
         hash_map = hash_to_graph_id(conn, provenance["num_edges"])
-        elided = elided_hashes(conn, provenance["num_edges"])
 
         degn_count = 0
         rejected_area_check = []
         missing_graph_id = []
-        skipped_elided = 0
         rows_to_copy = []
 
         for class_info in provenance["classes"]:
@@ -169,13 +147,6 @@ def load_order(order, out_dir):
                 if not type_file.exists():
                     continue
                 for hash_code, o, width, height, elements in parse_tablecode_file(type_file):
-                    if hash_code in elided:
-                        # SPEC-1/2 N=4 identity: one representative stored per graph/dual
-                        # pair. sqt solved this graph too (v==f class, both pair members
-                        # in the same file) but its dissections are the stored partner's,
-                        # rotated 90 degrees -- not a second, distinct set to load.
-                        skipped_elided += 1
-                        continue
                     if sum(e * e for e in elements) != width * height:
                         rejected_area_check.append((type_file.name, hash_code, width, height))
                         continue
@@ -197,11 +168,7 @@ def load_order(order, out_dir):
 
             degen_file = order_dir / f"{class_stem}-degenerate.txt"
             if degen_file.exists():
-                for hash_code, *_ in parse_tablecode_file(degen_file):
-                    if hash_code in elided:
-                        skipped_elided += 1
-                        continue
-                    degn_count += 1
+                degn_count += sum(1 for _ in parse_tablecode_file(degen_file))
 
         if missing_graph_id:
             raise RuntimeError(
@@ -283,7 +250,7 @@ def load_order(order, out_dir):
             "order": order, "graphs_loaded": num_graphs_loaded,
             "dissections_loaded": sum(type_counts.values()), "degn_count": degn_count,
             "type_counts": type_counts, "area_check_rejects": len(rejected_area_check),
-            "skipped_elided": skipped_elided, "duplicate_bouwkamp_codes": duplicate_bouwkamp_codes,
+            "duplicate_bouwkamp_codes": duplicate_bouwkamp_codes,
         }
     except Exception:
         conn.rollback()
@@ -302,7 +269,7 @@ def main():
     print(f"order {result['order']}: loaded {result['graphs_loaded']} graphs, "
           f"{result['dissections_loaded']} dissections, {result['degn_count']} degenerate "
           f"(discarded), {result['area_check_rejects']} area-check rejects, "
-          f"{result['skipped_elided']} elided-graph rows skipped")
+          f"{result['duplicate_bouwkamp_codes']} duplicate bouwkamp_code rejects")
     print(f"  type counts: {result['type_counts']}")
 
 
