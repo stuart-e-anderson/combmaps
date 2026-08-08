@@ -29,14 +29,13 @@ plantri driver ──▶ sqt (frozen) ──▶ typed tablecode files ──▶ 
 ```
 
 All four stages are built and validated end-to-end. **SPSR counts match
-OEIS A002839 exactly for every order backfilled so far: 9, 10, 11, 12, 13,
-14, 15, 16, 17, 18, 19, 21** (2, 6, 22, 67, 213, 744, 2609, 9016, 31426,
-110381, 390223, 4931308 — order 21's SPSR+SPSS = 4,931,307+1, matching the
-documented convention that a square counts as a rectangle for SPSR purposes
-from order 21 on). Order 20 backfill in progress. This is a strong
+OEIS A002839 exactly for every order in the 9-21 backfill**: 2, 6, 22, 67,
+213, 744, 2609, 9016, 31426, 110381, 390223, 1383905, 4931308 (order 21's
+SPSR+SPSS = 4,931,307+1, matching the documented convention that a square
+counts as a rectangle for SPSR purposes from order 21 on). 13 consecutive
+exact matches against a source the pipeline never saw is a strong
 independent correctness signal — SPSR is the largest, most sensitive type
-bucket, and 12 consecutive exact matches against a source the pipeline never
-saw is not coincidence.
+bucket.
 
 Orchestration: `pipeline/run_order.sh <order>` runs Stage A → B → C for one
 order end to end (idempotent — skips steps whose output already exists).
@@ -174,9 +173,10 @@ rows, abandoned per SPEC-2 — not salvageable, missing graph_id linkage and
 built on the buggy enumeration). Schema is applied from `db/schema/*.sql` in
 order: `graphs.sql`, `graph_names.sql`, `dissections.sql`, `reconciliation.sql`.
 
-Currently loaded: orders 7, 9-19, 21 (order 20 backfill in progress). All
-`order_counts.status = 'pending'` — none formally marked `'committed'` yet
-(that's the last step of the SPEC-2 gate procedure, not yet run as a
+Currently loaded: orders 7, 9-21 (the full originally-scoped backfill range,
+all passing the SPEC-2 upper-bound gate). All `order_counts.status =
+'pending'` — none formally marked `'committed'` yet (that's the last step
+of the SPEC-2 gate procedure, not yet run as a
 deliberate sign-off pass).
 
 ## Environment
