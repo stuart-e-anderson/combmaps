@@ -1,0 +1,10 @@
+# Generated pipeline output (plantri/sqt runs) -- large, reproducible via pipeline/stage_a_driver.py + sqt
+data/
+
+# Build artifacts
+squaringlib.egg-info/
+__pycache__/
+*.pyc
+
+# Compiled binaries
+pipeline/sqt

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "squaringlib"
+version = "0.1.0"
+description = "Tools for squared rectangles, squared squares, and related planar graph mathematics"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "duckdb>=0.10",
+    "pyarrow>=14",
+    "pandas>=2",
+    "psycopg[binary]>=3",
+    "combmapcore",
+]
+
+[project.optional-dependencies]
+web = ["flask>=3", "jinja2>=3"]
+dev = ["jupyter", "pytest", "ipython"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["squaringlib*"]
