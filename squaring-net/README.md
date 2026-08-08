@@ -19,7 +19,10 @@ graph-enumeration bug that silently dropped classes (see "Bugs fixed" below).
   index GBs instead of TBs at high orders.
 - Full design rationale: `../Rebuilding-squaring.net-with-database-driven-design.md`
 - Specs: `../SPEC-1-pipeline.md` (generation pipeline), `../SPEC-2-reconciliation.md`
-  (the gate), `../SPEC-4-special-properties.md` (geometry columns)
+  (the gate), `../SPEC-4-special-properties.md` (geometry columns), `../SPEC-5-graph-representations.md`
+  (longer-horizon direction: graphs as the general object, multiple visual
+  representations, deletion-contraction lineage -- separate track, doesn't
+  block anything here)
 
 ## Pipeline status (SPEC-1)
 
@@ -61,9 +64,15 @@ Writes, per order, into `data/planar_code/order=<N>/`:
 - `provenance.json` — plantri version + exact invocation per class
 
 **Known cost:** grows fast with order — order 17 is ~6s, order 19 ~76s,
-order 20/21 are ~9-11 minutes (plantri's own combinatorial cost on the
-largest `v` class, not driver overhead). Orders beyond ~24 will need
-sharding via plantri's `-s{res}/{mod}` flag, not yet implemented.
+order 20/21 are ~9-11 minutes, order 22 ~14 minutes *with* 20-way sharding
+(plantri's own combinatorial cost on the largest `v` class, not driver
+overhead -- a single +1 to the largest vertex count in a class costs roughly
+15x unsharded). `--shards N` parallelizes plantri's own enumeration (not
+just post-processing) via its `n res/mod [outfile]` positional argument --
+**not** the `-s res/mod` flag form some old scripts use, which errors on
+plantri 5.5 ("-/ is not permitted"). Verified correct: union of shards ==
+unsharded output, zero overlap, byte-identical hash sets, same OEIS-matched
+solve result end to end. Match `--shards` to available cores (`nproc`).
 
 ### Stage B — `pipeline/stage_b_sqt.cpp`
 The frozen solver (copied from `Ramanujan/polyhedrons/sqtv4_3.cpp`) with
@@ -147,22 +156,49 @@ loaded partition before it's marked committed. See `../SPEC-2-reconciliation.md`
    SPEC-2 now checks `dissections ≤ e·graphs(k)` as an upper bound, not a
    target ratio.
 
+## Website — `website/` (v1: pure browse + filter by dissection property)
+
+Flask app: `/` lists orders with graph/dissection/degenerate counts,
+`/order/<n>` browses dissections for an order with a `d_type` filter and
+pagination, `/dissection/<id>` shows one dissection's rendered SVG plus its
+properties (type, simple/perfect, crossed, corner elements). Read-only, no
+auth, matching the agreed minimal requirement. `website/db.py` holds the
+(small, hand-written) queries -- no ORM, no generic query API yet, that's
+SPEC-5/later territory if it's ever needed beyond the site itself.
+
+`squaringlib.render.render_svg()` is now real (was a stub): draws the outer
+rectangle plus every placed square from `squaringlib.geometry.place_elements()`,
+with size labels where there's room. Same "one placement function, many
+consumers" pattern SPEC-4 established -- the loader and the renderer both
+call `place_elements()`, neither reimplements placement.
+
+```bash
+export PGHOST=localhost PGDATABASE=squaring_net PGUSER=squaring_admin PGPASSWORD=...
+export FLASK_APP="website:create_app"
+flask run
+```
+
 ## Not built yet
 
-- **Stage A sharding** for orders beyond ~24 (plantri `-s{res}/{mod}`)
-- **`squaringlib.electrical`, `.queries`, `.render`** — still stub `__init__.py`
-  files only (docstring, no implementation)
-- **`squaringlib.render`** SVG output — needs porting from
-  `Ramanujan/polyhedrons/bk2svg.py` (`squaringlib.geometry.place_elements()`
-  already exists and is what the renderer should call, per SPEC-4)
-- **Flask website** — `website/routes.py` is a stub, no templates/static
-  content yet
+- **`squaringlib.electrical`, `.queries`** — still stub `__init__.py` files
+  only (docstring, no implementation); `.render` is no longer a stub (see above)
 - **`ref_counts` catalogue** — SPEC-2 §5 still needs the table actually
   populated (OEIS A002839 values now confirmed correct through order 21 via
   this build's investigation — see above — but not yet inserted as rows)
-- **Open questions:** Q4 (order ceiling — 24 safe floor, 25 with the schema
-  diet, per SPEC-1), and whether `corner_elements` needs a documented
-  tie-break for degenerate/self-dual corner placements (SPEC-4 open item)
+- **`order_counts.status` sign-off** — every loaded order is still `'pending'`;
+  marking `'committed'` is a deliberate gate-procedure step, not yet run
+- **Order 22 Stage B/C** — Stage A (graph enumeration) is done and sharded
+  successfully (see below); solving (`sqt`) and loading haven't run yet —
+  order 22's classes are ~3.4x more graphs than order 21's, so this is a
+  further, likely substantial time commitment, deliberately not started
+  without checking in first
+- **SPEC-5** (graphs as general object, multiple representations, deletion-
+  contraction lineage) — drafted, nothing implemented; its own open items
+  are listed in the spec itself, the biggest being that `graphs` doesn't
+  store actual graph structure yet (only a hash), which blocks everything
+  in that spec
+- **Open question:** whether `corner_elements` needs a documented tie-break
+  for degenerate/self-dual corner placements (SPEC-4 open item)
 
 ## Database
 
@@ -173,11 +209,13 @@ rows, abandoned per SPEC-2 — not salvageable, missing graph_id linkage and
 built on the buggy enumeration). Schema is applied from `db/schema/*.sql` in
 order: `graphs.sql`, `graph_names.sql`, `dissections.sql`, `reconciliation.sql`.
 
-Currently loaded: orders 7, 9-21 (the full originally-scoped backfill range,
-all passing the SPEC-2 upper-bound gate). All `order_counts.status =
-'pending'` — none formally marked `'committed'` yet (that's the last step
-of the SPEC-2 gate procedure, not yet run as a
-deliberate sign-off pass).
+Currently loaded (graphs + dissections): orders 7, 9-21 (the full
+originally-scoped backfill range, all passing the SPEC-2 upper-bound gate).
+Order 22's graphs are also generated on disk (`data/planar_code/order=22/`,
+1,645,576 graph rows) but not yet solved or loaded into Postgres. All loaded
+orders' `order_counts.status = 'pending'` — none formally marked
+`'committed'` yet (that's the last step of the SPEC-2 gate procedure, not
+yet run as a deliberate sign-off pass).
 
 ## Environment
 

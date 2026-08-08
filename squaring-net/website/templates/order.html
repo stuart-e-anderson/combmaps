@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Order {{ order_val }} — squaring.net{% endblock %}
+{% block content %}
+<h1>Order {{ order_val }} <span class="count">({{ "{:,}".format(total) }} dissection{{ "s" if total != 1 }})</span></h1>
+
+<nav class="type-filter">
+  <a href="{{ url_for('main.by_order', order_val=order_val) }}" class="{{ 'active' if not active_type }}">all</a>
+  {% for t in d_types %}
+    {% if type_counts.get(t) %}
+    <a href="{{ url_for('main.by_order', order_val=order_val, type=t) }}"
+       class="{{ 'active' if active_type == t }}">{{ t }} ({{ "{:,}".format(type_counts[t]|int) }})</a>
+    {% endif %}
+  {% endfor %}
+</nav>
+
+<div class="dissection-grid">
+{% for d in dissections %}
+  <a class="dissection-card" href="{{ url_for('main.dissection_detail', dissection_id=d.dissection_id) }}">
+    <span class="d-type">{{ d.d_type }}</span>
+    <span class="dims">{{ d.width }} × {{ d.height }}</span>
+    {% if d.is_crossed %}<span class="crossed" title="crossed">×</span>{% endif %}
+  </a>
+{% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<nav class="pager">
+  {% if page > 1 %}<a href="?{% if active_type %}type={{ active_type }}&{% endif %}page={{ page - 1 }}">&laquo; prev</a>{% endif %}
+  <span>page {{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}<a href="?{% if active_type %}type={{ active_type }}&{% endif %}page={{ page + 1 }}">next &raquo;</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

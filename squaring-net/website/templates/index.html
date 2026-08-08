@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}squaring.net — squared rectangles by order{% endblock %}
+{% block content %}
+<h1>Squared rectangles and squares by order</h1>
+<table class="orders">
+<thead><tr><th>Order</th><th>Graphs</th><th>Dissections</th><th>Degenerate</th></tr></thead>
+<tbody>
+{% for o in orders %}
+<tr>
+  <td><a href="{{ url_for('main.by_order', order_val=o.order_val) }}">{{ o.order_val }}</a></td>
+  <td>{{ "{:,}".format(o.graph_count) }}</td>
+  <td>{{ "{:,}".format(o.dissection_count) }}</td>
+  <td>{{ "{:,}".format(o.degn_count) }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

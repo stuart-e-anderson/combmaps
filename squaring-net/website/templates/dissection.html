@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ d.d_type }} {{ d.width }}×{{ d.height }} — squaring.net{% endblock %}
+{% block content %}
+<a href="{{ url_for('main.by_order', order_val=d.order_val) }}" class="back">&laquo; order {{ d.order_val }}</a>
+<h1>{{ d.d_type }} — {{ d.width }} × {{ d.height }}</h1>
+
+<div class="dissection-view">{{ svg|safe }}</div>
+
+<dl class="properties">
+  <dt>Order</dt><dd>{{ d.order_val }}</dd>
+  <dt>Type</dt><dd>{{ d.d_type }}</dd>
+  <dt>Simple</dt><dd>{{ "yes" if d.simple else "no (compound)" }}</dd>
+  <dt>Perfect</dt><dd>{{ "yes" if d.perfect else "no (imperfect)" }}</dd>
+  <dt>Crossed</dt><dd>{{ "yes" if d.is_crossed else "no" }}</dd>
+  <dt>Corner elements</dt><dd>{{ d.corner_elements|join(", ") }}</dd>
+  <dt>Elements</dt><dd class="elements">{{ d.elements|join(" ") }}</dd>
+</dl>
+{% endblock %}
