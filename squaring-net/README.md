@@ -1,6 +1,6 @@
 # squaring.net rebuild — project status
 
-**Last updated:** 2026-08-10 (SPEC-6 compound pipeline and SPEC-7 surfaces pipeline scoped, incl. SPST torus taxonomy)
+**Last updated:** 2026-08-11 (SPEC-8 query/display layer scoped)
 **North star:** showcase all squared rectangles from graphs with up to 30 edges (includes dodecahedron/icosahedron).
 
 This is a from-scratch rebuild of squaring.net: new generation pipeline, new
@@ -24,7 +24,10 @@ graph-enumeration bug that silently dropped classes (see "Bugs fixed" below).
   representations, deletion-contraction lineage -- separate track, doesn't
   block anything here), `../SPEC-6-compound-pipeline.md` (CPSR/CPSS/CISR/CISS
   -- scoped, not implemented), `../SPEC-7-surfaces-pipeline.md` (squared
-  cylinders/tori -- scoped, not implemented)
+  cylinders/tori -- scoped, not implemented), `../SPEC-8-query-display-layer.md`
+  (the v1 website's browse/render layer, now stale against SPEC-6/7's schema
+  additions -- scoped, not implemented; narrower than SPEC-5's longer-horizon
+  query API)
 
 ## Pipeline status (SPEC-1)
 
