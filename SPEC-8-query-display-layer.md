@@ -233,13 +233,12 @@ worth a keyset-pagination note for whenever this gets revisited.
    never be inserted at all. Bigger consequence for SPEC-7 as a whole: per
    Stuart, this solver **works directly on the same 3-connected graphs
    `plantri` already enumerates for the plane pipeline** — no separate
-   graph generation step for cylinders. That likely supersedes SPEC-7's
-   `surftri`-evaluation item (2 below) for the cylinder track specifically
-   — the cylinder pipeline may collapse to "a new Stage B variant + a
-   Stage C filtering rule," not a new Stage A. Not yet confirmed whether
-   the same simplification extends to tori — asked, not yet answered.
-   SPEC-7 itself not yet rewritten to reflect this; do that before treating
-   its cylinder section as current.
+   graph generation step for cylinders, superseding the old
+   `surftri`-evaluation plan for that track. Confirmed the asymmetry with
+   tori too: Stuart confirmed tori do **not** get the same simplification
+   — genus 1 genuinely needs `surftri`'s exhaustive generation, unlike
+   cylinder's genus 0. **SPEC-7 rewritten (v0.2) to reflect all of this —
+   it's current, this note is now just a pointer to why.**
 3. Decide the `d_types` table question (item 3) while touching this area.
 4. Build `surface_type`/`category` filtering (item 5) once (2) is resolved.
 5. Cylinder rendering (item 6) — cheap to check, may turn out to need
