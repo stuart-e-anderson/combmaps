@@ -121,12 +121,20 @@ today; 2 for CISR/CISS) rather than being CPSR/CISR-specific.
    **This is the one change that actively matters for correctness** —
    without it, the new populations would silently merge into `category=1`
    and corrupt SPEC-2 §3's upper-bound reconciliation.
-3. **`order_counts` schema**: **resolved this session** — add a `category`
-   column, widen the primary key to `(order_val, category)`. Chosen over a
-   separate bolt-on table per Stuart's explicit requirement that every
-   population have equal status, not an implicit primary-vs-secondary
-   hierarchy. Each `(order, category)` pair gets its own independent
-   `graph_count`/`plantri_classes_fed`/`status` row.
+3. **`order_counts` schema — done 2026-08-11 (key refined further, see
+   SPEC-7).** Added a `category` column (live DB + `db/schema/
+   reconciliation.sql`), chosen over a separate bolt-on table per Stuart's
+   explicit requirement that every population have equal status, not an
+   implicit primary-vs-secondary hierarchy. The primary key ended up wider
+   than first planned: while confirming SPEC-7's cylinder inference,
+   realized `order_counts` is a *provenance* record (same honesty role as
+   `plantri_classes_fed`), and cylinder dissections are a genuinely
+   different generation run (different tool) over the *same*
+   `category=1` graphs plane uses -- so `category` alone couldn't
+   distinguish them. Final key: `(order_val, category, tool)`. Migrated
+   live (17 existing rows preserved, all landed as
+   `category=1, tool='sqt'`; smoke-tested inserting a second row for the
+   same order+category under a different tool, rolled back).
 4. **SPEC-2 §0/§3 predicates**: needs confirmed predicates for `category=2`
    and `category=3` (probably just `surface_type='plane' AND category=N`,
    symmetric with today's check), and — not yet re-derived — whether
@@ -192,7 +200,8 @@ cost check-in first.
 1. Parameterize Stage A + `valid_vf_classes` (CPSR/CPSS track first — bounds
    already match today's, lowest-risk starting point).
 2. Add `--category` to Stage C loader.
-3. Migrate `order_counts` to `(order_val, category)`.
+3. ~~Migrate `order_counts` to `(order_val, category)`~~ — **done
+   2026-08-11**, key ended up as `(order_val, category, tool)`, see above.
 4. Run CPSR/CPSS at small orders (13-17), measure cost, check in before
    scaling.
 5. Test real CPSR/CPSS output against the candidate `ref_counts` sequences

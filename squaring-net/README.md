@@ -1,6 +1,6 @@
 # squaring.net rebuild — project status
 
-**Last updated:** 2026-08-11 (SPEC-7 rewritten: cylinder needs no new graph generation, only torus does)
+**Last updated:** 2026-08-11 (order_counts key widened to (order_val, category, tool))
 **North star:** showcase all squared rectangles from graphs with up to 30 edges (includes dodecahedron/icosahedron).
 
 This is a from-scratch rebuild of squaring.net: new generation pipeline, new

@@ -68,17 +68,30 @@ discard the face-cycle output and load only the homological-cycle
 output.** No `surface_type` disambiguation problem to solve — the
 redundant rows should simply never be inserted.
 
-**Consequence for `graphs.category`/`surface_type`**: a cylinder
-dissection's underlying graph is a perfectly ordinary 3-connected planar
-graph — the same `graph_id`, `category=1`, `surface_type='plane'` row a
-plane dissection from that graph would use. There's no separate "cylinder
-graph" population, so `graphs.surface_type='cylinder'` is likely **never
-actually used** — the cylinder-ness lives entirely in `dissections.d_type`.
-Likely consequence for `order_counts`: cylinder dissection counts may just
-be additional keys in the *same* `(order_val, category=1)` row's
-`d_type_counts` JSONB that plane dissections already populate, not a new
-key dimension — **inferred from the above, not yet confirmed with Stuart,
-worth checking before building the loader.**
+**Consequence for `graphs.category`/`surface_type` — confirmed with
+Stuart, 2026-08-11.** A cylinder dissection's underlying graph is a
+perfectly ordinary 3-connected planar graph — the same `graph_id`,
+`category=1`, `surface_type='plane'` row a plane dissection from that
+graph would use. There's no separate "cylinder graph" population, so
+`graphs.surface_type='cylinder'` is likely never actually used — the
+cylinder-ness lives entirely in `dissections.d_type`.
+
+**Consequence for `order_counts` — revised after discussion, then
+implemented.** My first instinct (cylinder counts just become more keys
+on the *same* `(order_val, category=1)` row plane already populates) was
+wrong: `order_counts` isn't just a count cache, it's a **provenance
+record** (`tool`/`tool_version`/`git_sha`/`plantri_version`/
+`plantri_classes_fed` exist specifically so a partition's origin is
+honestly checkable — the same mechanism that already correctly flags
+CISR/CISS as partial). Plane and cylinder dissections at the same order
+come from **different generation runs** (`sqt` vs. the cylinder
+cycle-basis solver) even though they draw on the same graphs, so folding
+them into one row would make that row's single `tool` column dishonest
+about its own provenance. **Resolved: `order_counts`' primary key is now
+`(order_val, category, tool)`, not `(order_val, category)`** — done
+2026-08-11, live DB + `db/schema/reconciliation.sql`, 17 existing rows
+preserved (all `category=1, tool='sqt'`), smoke-tested that a second row
+for the same order+category under a different tool is now possible.
 
 This also **supersedes the previous plan to evaluate `surftri` for the
 cylinder track** — no generator to evaluate, cylinder Stage A doesn't
@@ -200,11 +213,11 @@ of that raw count turns out to not need storing at all.
    solver — SPEC-1's whole design philosophy is a frozen, auditable solver
    binary; the existing sage solver works (produced the real data above)
    but porting is a real question, not an assumed yes.
-4. **Confirm the `graphs.category`/`order_counts` inference above** — that
-   cylinder dissections reuse the same plane `graph_id`/`category=1`
-   population and don't need a new key dimension, only new `d_type_counts`
-   keys on the existing `(order_val, category)` rows. Reasoned through
-   here, not yet confirmed with Stuart.
+4. ~~Confirm the `graphs.category`/`order_counts` inference above~~ —
+   **done 2026-08-11.** `graphs.category`/`surface_type` need no change
+   (cylinder dissections reuse the same plane `category=1` graphs);
+   `order_counts` needed more than first thought — see above, key is now
+   `(order_val, category, tool)`, implemented.
 5. **Per-type stopping logic** for the cylinder track, once (1)-(2) land —
    genuinely new, not in the existing tooling: keep generating an order's
    graphs but stop loading dissections of a type that's already crossed
@@ -231,8 +244,9 @@ of that raw count turns out to not need storing at all.
    — both done 2026-08-10.
 2. Read the cylinder solver's actual code (item 1 above) — cheap,
    unblocks the filter design, no dependencies.
-3. Build the discard/keep filter + confirm the `category`/`order_counts`
-   inference (items 2, 4) — this is most of what "cylinder Stage C" is.
+3. Build the discard/keep filter (item 2 — the `category`/`order_counts`
+   schema question, item 4, is now done) — this is most of what "cylinder
+   Stage C" is.
 4. Decide sage-based vs. ported (item 3), then build cylinder's per-type
    stopping logic (item 5).
 5. Torus track — genuinely separate, not blocked on 1-4: build the
@@ -246,8 +260,6 @@ of that raw count turns out to not need storing at all.
 ## Open items carried forward
 - The solver's exact emitted `d_type` set (item 1) — read the code before
   trusting the folder-name-derived table above as complete.
-- The `graphs.category`/`order_counts` inference for cylinders — reasoned
-  through, not confirmed with Stuart.
 - `valid_vf_classes`-equivalent bound for genus-1 (torus) graphs — not
   derived; SPEC-6's Euler-based reasoning was specific to genus 0.
 - Generalizing the torus solver beyond one hardcoded graph — the actual
