@@ -1,6 +1,6 @@
 # squaring.net rebuild — project status
 
-**Last updated:** 2026-08-10
+**Last updated:** 2026-08-10 (SPEC-6 compound pipeline scoped)
 **North star:** showcase all squared rectangles from graphs with up to 30 edges (includes dodecahedron/icosahedron).
 
 This is a from-scratch rebuild of squaring.net: new generation pipeline, new
@@ -182,16 +182,50 @@ flask run
 
 - **`squaringlib.electrical`, `.queries`** — still stub `__init__.py` files
   only (docstring, no implementation); `.render` is no longer a stub (see above)
-- **`ref_counts` catalogue — SPSR only.** Populated 2026-08-10 with OEIS A002839
-  (orders 9-24, independently re-fetched and cross-checked against
-  squaring.net's own old `spsr.html` catalogue page, both agree). The other
-  seven `d_type`s (SPSS, SISR, SISS, CPSR, CPSS, CISR, CISS) are deliberately
-  **not** filled yet — each needs its own OEIS sequence identified and
-  cross-checked (candidates seen: A002962, A181340, A220165/A220166,
-  A217156 — none confirmed to map cleanly to a single `d_type` yet, and
-  SPEC-2's own history (the order-24 228,130,900 vs 228,130,926 slip) is a
-  standing warning against guessing here). Needs a dedicated pass with
-  Stuart confirming each sequence before inserting.
+- **`ref_counts` catalogue — SPSR, SPSS, SISR, SISS done; CPSR/CPSS/CISR/CISS
+  need a different pipeline first, not just a lookup (see below).**
+  - **SPSR**: OEIS A219766 ("nonsquare simple perfect squared rectangles"),
+    **SPSS**: OEIS A006983. Originally SPSR was sourced from A002839, whose
+    own FORMULA field says `A002839(n) = A006983(n) + A219766(n)` — i.e.
+    A002839 is SPSR+SPSS *combined*, not pure SPSR. Numerically identical to
+    pure SPSR through order 20 (SPSS is 0 there), so this went unnoticed
+    until order 21 produced a real (fully understood) §5 delta: raw SPSR
+    there is 4,931,307, one short of A002839(21)=4,931,308, because the
+    order-21 Duijvestijn 112² is stored as `d_type='SPSS'`. Fixed 2026-08-10
+    once Stuart supplied the A219766/A006983 OEIS pages directly: `ref_counts`
+    now holds pure SPSR (A219766: order 21 = 4,931,307) and SPSS (A006983:
+    order 21 = 1) separately, both confirmed exact against the live DB, and
+    the §5 assert now shows **zero delta at order 21** (previously -1).
+    Orders 22-26 present too (SPSR/SPSS separately) for when those orders load.
+  - **SISR**: OEIS A220165 (nonsquare simple imperfect squared rectangles),
+    **SISS**: OEIS A002962 (simple imperfect squared squares). Both from
+    Stuart-provided OEIS search pages, both independently verified against
+    *every* loaded order (9-21) in the live DB before inserting -- exact
+    match, zero deltas, both sequences directly authored/extended by Stuart
+    E Anderson from squaring.net's own catalogue.
+  - **CPSR/CPSS/CISR/CISS: deliberately not filled -- this isn't a lookup
+    gap, it's a pipeline gap, now fully scoped in `../SPEC-6-compound-pipeline.md`.**
+    The tiny CPSR counts already in the DB (1, 3, 11, 42, 108 at orders
+    17-21) are *not* the true compound population -- rare incidental
+    byproducts of the 3-connected population Stage A currently enumerates.
+    Nothing dishonest is currently claimed: `order_counts.plantri_classes_fed`
+    for every committed order already lists only the 3-connected classes fed
+    (SPEC-1 anticipated exactly this gap in its own text), and
+    `order_counts.status='committed'` was only ever a claim about the types
+    the gate actually checks (SPSR/SPSS here), not feature-completeness
+    across all eight types. SPEC-6 covers: two separate new populations
+    (CPSR/CPSS need exactly-2-connected min-degree-3; CISR/CISS need
+    min-degree-2, since degree-2 vertices are what *produce* imperfect
+    results rather than something to exclude), why the existing Stage A
+    dual-derivation pattern (not plantri's `-d` switch) generalizes cleanly
+    to both, the `valid_vf_classes` bound for each, the `order_counts`
+    schema change already agreed (`category` added to the primary key, one
+    row per population per order -- every type gets equal status, no
+    primary/bolt-on hierarchy), and why `ref_counts` for these types has to
+    be resolved empirically once real data exists rather than guessed from
+    OEIS sequence names (candidates catalogued, none confirmed). Not
+    started -- needs its own go/no-go cost check-in per track before any
+    backfill, same as order 22.
 - **`order_counts.status` sign-off — orders 7, 9-21 done 2026-08-10.** Ran
   the full SPEC-2 gate procedure (§3 upper-bound, §4a-d structural checks
   including a full 7.36M-row area-code audit — 78s, zero violations, done
