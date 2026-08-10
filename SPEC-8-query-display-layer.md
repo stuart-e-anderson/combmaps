@@ -14,6 +14,17 @@ separate from v1. This spec is the much narrower, concrete question: what
 does the *existing* Flask site need to keep working now that the schema
 it queries has grown.
 
+**Scope update, 2026-08-11 (see `SPEC-9-site-structure.md`)**: resolved
+with Stuart that the site has no standalone "Search" feature — a rich
+"detailed dissection selection" filter interface (order, `d_type`,
+`surface_type`, `category`, exact dimensions, `is_crossed`,
+`is_trivial_compound`, corner elements, etc.) *is* search for the
+catalogue, not a separate thing to build alongside it. So this spec's job
+is now explicitly "let someone find any dissection by any property," not
+just "paginate what SPEC-1 loaded" — a real scope increase, not just a
+rename. Topics/History content (SPEC-9) gets its own much smaller,
+separate search mechanism; not unified with this one.
+
 ---
 
 ## What exists today (read directly, not from memory)
@@ -174,6 +185,27 @@ worth a keyset-pagination note for whenever this gets revisited.
    not urgent, worth deciding before the query surface grows further.
 9. **Design a showcase/notable-dissection presentation** for rarities like
    SPST, separate from the generic per-order paginated browse.
+10. **SVG safe-rendering pattern for large coordinates — confirmed in scope
+    2026-08-11** (from `future_squaring.md`, a prior AI session's
+    technical note): normalize/rescale actual SVG geometry into a bounded
+    coordinate range (e.g. `[0, 10⁴]`–`[0, 10⁵]`), store the true exact
+    integer values as `data-*` attributes, use `viewBox` for display
+    scaling. Not an urgent bug fix (SVG's 64-bit floats are safe far
+    beyond anything this project has hit — `ratio_cf` maxed out at 32,821
+    at order 21), but cheap to bake into `render_svg()` now while it's
+    still unbuilt for cylinder/torus shapes anyway, rather than retrofit
+    once large-coordinate cases (surface tilings, "Fibonacci-scale dims"
+    per `width`/`height`'s own column comment) actually show up.
+11. **URL/redirect strategy — confirmed in scope 2026-08-11.** The old
+    site has ~472 hand-built, presumably-indexed pages under paths like
+    `sq/sr/spsr/o17/order17_spsr.html`. The new site's routing
+    (`/order/<n>`, `/dissection/<id>`, plus whatever the site-structure
+    conversation lands on for theory/history/topic content) replaces that
+    scheme entirely. Needs a mapping plan (old path → new path or a
+    generic "moved, here's the new catalogue" redirect) designed
+    *alongside* the new URL scheme, not after it's fixed — cheap now,
+    expensive later. Not scoped further here; depends on the site
+    structure decision this spec's still-open items feed into.
 
 ## Suggested order of work
 

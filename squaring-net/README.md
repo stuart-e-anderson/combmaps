@@ -1,6 +1,6 @@
 # squaring.net rebuild — project status
 
-**Last updated:** 2026-08-11 (SPEC-8 query/display layer scoped)
+**Last updated:** 2026-08-11 (SPEC-9 site structure and SPEC-10 art/gallery scoped)
 **North star:** showcase all squared rectangles from graphs with up to 30 edges (includes dodecahedron/icosahedron).
 
 This is a from-scratch rebuild of squaring.net: new generation pipeline, new
@@ -27,7 +27,27 @@ graph-enumeration bug that silently dropped classes (see "Bugs fixed" below).
   cylinders/tori -- scoped, not implemented), `../SPEC-8-query-display-layer.md`
   (the v1 website's browse/render layer, now stale against SPEC-6/7's schema
   additions -- scoped, not implemented; narrower than SPEC-5's longer-horizon
-  query API)
+  query API; 2026-08-11 scope update -- absorbs "search" as rich catalogue
+  filtering, no separate search feature, see SPEC-9), `../SPEC-9-site-structure.md`
+  (overall site map: Catalogue/Topics/History/Downloads/About/Art, the
+  markdown-based Topics/History content system, why search isn't a separate
+  feature -- scoped 2026-08-11, not implemented), `../SPEC-10-art-gallery.md`
+  (a new generative-art section: real dissections and a separate Carlson-style
+  binary square construction, both decorated client-side with interactive
+  Truchet patterns -- scoped 2026-08-11, not implemented)
+- **`../future_squaring.md`** -- ideas extracted 2026-08-11 from 6 old AI-session
+  PDFs in the `squaring_net_backup` archive, filtered against the specs above.
+  Not a spec -- a holding area for content/feature ideas (a theory/history
+  section, an existing but disconnected spectral-graph-invariants dataset,
+  rendering notes, etc.) not yet decided on. Four items flagged as worth
+  deciding on soon, not deferring indefinitely -- see its summary section.
+- **Old-site architecture**: reviewed 2026-08-11 (backup at
+  `/media/stuart/T5_EVO/squaring_net_backup/www.squaring.net/`, 57GB, ~472
+  pages). Findings not yet written to a doc (ask if you want it preserved) --
+  headline: a 23GB orphaned research dump sits unlinked inside the old public
+  web root and needs a keep/archive decision before any migration; the old
+  site otherwise has no server-side generation, two incompatible nav systems,
+  and a client-side Bouwkamp-code SVG renderer worth carrying forward in spirit.
 
 ## Pipeline status (SPEC-1)
 
