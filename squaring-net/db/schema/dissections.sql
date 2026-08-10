@@ -20,8 +20,11 @@ CREATE TABLE dissections (
     order_val                SMALLINT     NOT NULL,
     graph_id                 BIGINT       NOT NULL REFERENCES graphs (graph_id),
     d_type                   CHAR(4)      NOT NULL
-                              CHECK (d_type IN ('SPSR','SPSS','SISR','SISS',
-                                                 'CPSR','CPSS','CISR','CISS')),
+                              CHECK (d_type IN ('SPSR','SPSS','SISR','SISS',    -- plane rectangle/square
+                                                 'CPSR','CPSS','CISR','CISS',
+                                                 'SPSC','SISC','CPSC','CISC',    -- SPEC-7: cylinder ('C' shape)
+                                                 'SPST','SIST','CPST','CIST')),  -- SPEC-7: torus ('T' shape) -- SPST = Stuart's
+                                                                                 -- one confirmed example so far (Gambini's graph)
     simple                   BOOLEAN      NOT NULL,
     perfect                  BOOLEAN      NOT NULL,
     is_square                BOOLEAN      NOT NULL,

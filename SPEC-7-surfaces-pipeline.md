@@ -214,10 +214,21 @@ anything further.
 5. **`order_counts`**: already getting a `category` column per SPEC-6; needs
    confirmation it also naturally extends to `surface_type`, or whether
    that's a separate key dimension again.
-6. **`d_type` extensibility**: the `CHECK` constraint hardcodes the original
-   8 plane values — blocks inserting *any* cylinder or torus row today,
-   regardless of everything else in this spec. Needs widening (or a lookup
-   table, if the taxonomy keeps growing) before any surface row can load.
+6. **`d_type` extensibility — done 2026-08-10.** Widened
+   `dissections_d_type_check` (both the live DB, via `DROP`/`ADD CONSTRAINT`
+   on the partitioned parent -- confirmed it propagates to every partition,
+   28 matching constraints afterward -- and `db/schema/dissections.sql` so a
+   fresh install matches) to add the 8 new shape values: `SPSC`/`SISC`/
+   `CPSC`/`CISC` (cylinder) and `SPST`/`SIST`/`CPST`/`CIST` (torus), 16
+   total. Smoke-tested: an `SPST` row now passes the `d_type` check (test
+   insert only failed on an unrelated NOT NULL column, rolled back, zero
+   rows left behind). Deliberately did **not** add `TCISR`/`TCPSR`-style
+   trivial-compound variants seen in the raw cylinder data -- whether
+   trivial-vs-nontrivial compound should be its own `d_type` code (and if
+   so, `CHAR(4)` needs widening too, since `TCISR` is 5 characters) or a
+   separate boolean column is still an open design question, not resolved
+   by this migration. Lookup-table-vs-CHECK-list tradeoff also still open,
+   deferred until the taxonomy grows past these 16.
 7. **Evaluate `surftri` as the real Stage A generator** for both cylinder
    and torus (genus 0-with-holes and genus 1 respectively), rather than
    plain `plantri` for cylinders and a hardcoded one-off script for tori —
@@ -233,9 +244,9 @@ anything further.
 
 ## Suggested order of work
 
-1. **Widen `d_type`'s `CHECK` constraint** (or replace with a lookup table)
-   — cheapest item here, unblocks loading any surface row at all, no
-   dependency on anything else.
+1. ~~Widen `d_type`'s `CHECK` constraint~~ — **done 2026-08-10**, see item 6
+   above. The lookup-table-vs-CHECK-list question is still open but not
+   blocking anything right now.
 2. Evaluate `surftri` against the existing plain-`plantri` cylinder
    approach (item 7 above) — decide whether cylinder Stage A should be
    rebuilt on it before investing further in the current one.
