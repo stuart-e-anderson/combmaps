@@ -10,6 +10,9 @@
   <dt>Order</dt><dd>{{ d.order_val }}</dd>
   <dt>Type</dt><dd>{{ d.d_type }}</dd>
   <dt>Simple</dt><dd>{{ "yes" if d.simple else "no (compound)" }}</dd>
+  {% if not d.simple %}
+  <dt>Trivial compound</dt><dd>{{ "yes" if d.is_trivial_compound else "no" }}</dd>
+  {% endif %}
   <dt>Perfect</dt><dd>{{ "yes" if d.perfect else "no (imperfect)" }}</dd>
   <dt>Crossed</dt><dd>{{ "yes" if d.is_crossed else "no" }}</dd>
   <dt>Corner elements</dt><dd>{{ d.corner_elements|join(", ") }}</dd>

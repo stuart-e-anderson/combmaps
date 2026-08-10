@@ -8,7 +8,11 @@ import os
 
 import psycopg
 
-D_TYPES = ["SPSR", "SPSS", "SISR", "SISS", "CPSR", "CPSS", "CISR", "CISS"]
+D_TYPES = [
+    "SPSR", "SPSS", "SISR", "SISS", "CPSR", "CPSS", "CISR", "CISS",  # plane
+    "SPSC", "SISC", "CPSC", "CISC",  # SPEC-7: cylinder
+    "SPST", "SIST", "CPST", "CIST",  # SPEC-7: torus
+]
 PAGE_SIZE = 50
 
 
@@ -76,8 +80,8 @@ def dissection_detail(dissection_id):
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("""
             SELECT dissection_id, order_val, graph_id, d_type, simple, perfect,
-                   is_square, width, height, bouwkamp_code, is_crossed,
-                   corner_elements, boundary_square_indices
+                   is_square, is_trivial_compound, width, height, bouwkamp_code,
+                   is_crossed, corner_elements, boundary_square_indices
             FROM dissections WHERE dissection_id = %s
         """, (dissection_id,))
         row = cur.fetchone()

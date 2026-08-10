@@ -163,11 +163,19 @@ worth a keyset-pagination note for whenever this gets revisited.
 
 ## What needs to change / build
 
-1. **Add the 8 new values to `db.D_TYPES`** (or supersede it with the
-   `d_types` table below) — mechanical, unblocks filter tabs for cylinder/
-   torus rows once they exist.
-2. **Add `is_trivial_compound` to `dissection_detail()`'s `SELECT` and
-   `dissection.html`'s property list** — mechanical.
+1. ~~Add the 8 new values to `db.D_TYPES`~~ — **done 2026-08-11.** Widened
+   to all 16; smoke-tested (`db.D_TYPES` returns 16 values, order page's
+   filter tabs still correctly show only types with real data at that
+   order — nothing changes visibly until cylinder/torus rows actually
+   load, which is correct). The `d_types` reference table question (item
+   3 below) is still open, not required for this to work.
+2. ~~Add `is_trivial_compound` to `dissection_detail()`'s `SELECT` and
+   `dissection.html`'s property list~~ — **done 2026-08-11.** Row only
+   shown when the dissection is compound (`{% if not d.simple %}`), so
+   simple dissections don't get a meaningless "no" for a flag that isn't
+   applicable to them. Smoke-tested against a live compound row (order 13
+   CISR) and a live simple row (order 13 SPSR) via a running Flask
+   instance — correct in both directions.
 3. **Decide and build (or explicitly defer) the `d_types` reference table**
    — see "the decision SPEC-7 left open" above.
 4. **Resolve the cylinder `SPSR`-vs-`SPSC` naming question** (SPEC-7's open
@@ -209,10 +217,29 @@ worth a keyset-pagination note for whenever this gets revisited.
 
 ## Suggested order of work
 
-1. Items 1-2 (mechanical, no dependencies, unblocks nothing else but
-   immediately correct).
-2. Resolve the `SPSR`-vs-`SPSC` naming question (item 4) — gates items 5
-   and the correctness of any cylinder filtering.
+1. ~~Items 1-2~~ — done 2026-08-11.
+2. ~~Resolve the `SPSR`-vs-`SPSC` naming question~~ — **resolved 2026-08-11
+   by Stuart, differently than expected: it's neither reuse nor
+   inconsistent labeling.** The cylinder cycle-basis solver (spanning tree
+   + co-tree fundamental cycles) run on an ordinary 3-connected planar
+   graph produces *both* outputs from one solve — face cycles give the
+   same object as the plane catalogue (hence the `SPSR`/`SISR`-named
+   folders, correctly labeled, genuinely redundant with what SPEC-1
+   already has), and the non-face-bounding homological cycles give the
+   actual squared cylinder. Operational consequence for the real loader:
+   **discard the face-cycle output, load only the homological-cycle
+   output** (`SPSC`/`SISC`/`CPSC`/`CISC`) — no `surface_type`
+   disambiguation problem to solve, because the redundant rows should
+   never be inserted at all. Bigger consequence for SPEC-7 as a whole: per
+   Stuart, this solver **works directly on the same 3-connected graphs
+   `plantri` already enumerates for the plane pipeline** — no separate
+   graph generation step for cylinders. That likely supersedes SPEC-7's
+   `surftri`-evaluation item (2 below) for the cylinder track specifically
+   — the cylinder pipeline may collapse to "a new Stage B variant + a
+   Stage C filtering rule," not a new Stage A. Not yet confirmed whether
+   the same simplification extends to tori — asked, not yet answered.
+   SPEC-7 itself not yet rewritten to reflect this; do that before treating
+   its cylinder section as current.
 3. Decide the `d_types` table question (item 3) while touching this area.
 4. Build `surface_type`/`category` filtering (item 5) once (2) is resolved.
 5. Cylinder rendering (item 6) — cheap to check, may turn out to need
