@@ -65,7 +65,7 @@ plantri driver ─▶ sqt (frozen) ─▶ typed tablecode files ─▶ loader �
 - Splitting `sqt` into separate solver/classifier/canonicaliser binaries (the file-output boundary already provides the decomposition; re-splitting risks the exact bugs we're eliminating).
 - Special-property / geometry columns (crossed, boundary, corner) — SPEC-4.
 - The query API — SPEC-5.
-- Surfaces (cylinder/torus) generation — separate spec, uses `/home/stuart/Dev/surface_cycles/surftri_0989` cycle-basis code; blocked on the count question for storage sizing.
+- Surfaces (cylinder/torus) generation — see `SPEC-7-surfaces-pipeline.md`. The count question is resolved (real per-order-per-type cylinder data pulled from `/home/stuart/Dev/surface_cycles/surftri_0989`, 2026-08-10: cylinder dissections already outnumber plane's at the same order by ~6,300x by order 13); scoped, not yet implemented.
 
 ## Open items feeding this spec
 - **Q4:** order ceiling for the bulky types (24 safe floor, 25 with the schema diet).
