@@ -4,9 +4,14 @@
 **Role:** resolves the storage-sizing question SPEC-1 flagged as blocking
 ("Surfaces (cylinder/torus) generation — separate spec... blocked on the
 count question for storage sizing") using real enumeration data already on
-disk, and sets the completion criterion the same way SPEC-6 did for
-CISR/CISS: a magnitude-based stopping rule per type, not a fixed order
-target.
+disk. Two genuinely different situations: **cylinders** have real,
+explosive, well-characterized growth, so get the same magnitude-based
+stopping rule SPEC-6 used for CISR/CISS; **tori** turn out to have almost
+no real enumeration data at all (one known graph, per Stuart's steer) so
+this spec instead scopes what's needed to *get* real data — including
+naming the new **SPST**/SIST/CPST/CIST types (Stuart's terms) for "squared
+square tori" and the concrete `d_type` schema-flexibility gap that blocks
+loading any of them, cylinder or torus, today.
 
 ---
 
@@ -67,14 +72,93 @@ dissections already outnumber plane dissections at order 13 (296 total) by
 to **plane order 20-21** (1.5M-5.3M). Confirms the design conversation's
 "order of magnitude larger" concern was a significant understatement.
 
-## Tori: much less characterized than cylinders
+## Tori: a fundamentally different problem, not just "less data"
 
-`torus_dissections_output/` (3,077 SVG files) and `torus_orthogonal_output/`
-(1 example run, "Gambini 9-Vertex Graph") exist, but **neither is organized
-by order or type** the way `squared_cylinders/` is — these read as
-exploratory/prototype output, not a systematic per-order enumeration. No
-sizing data available for tori yet. Treated as a separate open item, not
-assumed to follow the same growth curve as cylinders without evidence.
+Read `torus_dissections_output/00_summary.txt` and `torus_master_solver.sage`
+in full before writing this — the 3,077 number is **not** what it looks
+like at first glance, and the real situation calls for a different kind of
+scoping than cylinders got.
+
+**What's actually there.** Only **one** base graph is known to admit a
+perfect torus dissection at all: a 9-vertex rotation system Gambini found
+via "a packing backtracker program" (Stuart's description) — a
+fundamentally different search method from graph-enumeration-then-solve.
+That graph is hardcoded directly into `torus_master_solver.sage` (`line =
+"bgficd,adch,..."`). Because a torus has genus 1, its cycle space has rank
+2 (vs. a planar graph's rank 1) — so unlike the plane/cylinder solver,
+which picks *one* battery edge and gets a unique electrical solution, this
+solver computes a full 2-dimensional integer kernel (basis vectors `v1`,
+`v2` from the combined KCL/KVL matrix) and scans **integer linear
+combinations** `alpha*v1 + beta*v2` for `alpha, beta` in `[-50, 50]` (10,201
+combinations), keeping the ones that reduce (dividing out the GCD) to a
+set of distinct positive integers. **3,077 of those combinations produced a
+valid perfect solution** — that's 3,077 different numeric
+scalings/embeddings of *one* combinatorial graph, not 3,077 combinatorially
+distinct dissections the way order-13's 1.86M cylinder count is. Comparing
+that number directly to cylinder or plane counts would be comparing
+different things entirely.
+
+**So "how many squared tori exist" is currently unknown at the level that
+actually matters** (distinct graphs), not just under-measured. There is no
+order-by-order torus enumeration to characterize the way cylinders were
+characterized this session — there's exactly one known example, an
+unknown-but-presumably-large space of undiscovered ones, and no systematic
+search run yet.
+
+**The real fix exists but hasn't been used.** SPEC-1 was already right to
+point at `/home/stuart/Dev/surface_cycles/surftri_0989` — but the actual
+generator there is a compiled binary, **`surftri`** (by Thom Sulanke,
+explicitly built on plantri's own code/data structures, per its own header
+comment), not the sage scripts. `surftri`'s usage line
+(`[-uaAgsh -c#xm#pe#f#qy -odb -v -n] n g [res/mod] [outfile]`) takes a
+genus parameter `g` — the source (`surftri.c`) shows support for genus 0
+(with boundary/holes — the cylinder case), genus 1 (torus), and beyond
+(higher genus, plus non-orientable surfaces via negative genus), backed by
+precomputed irreducible-triangulation basis files already sitting in the
+directory (`genus0.alpha`, `genus1.alpha`, `genus-1.alpha`, `genus0.holes`,
+`genus1.holes`, etc.). This is a real, systematic, plantri-equivalent
+enumerator for exactly this problem — **and it appears to have been used
+for neither cylinders (which used plain `plantri -pe{N}a` instead) nor
+tori (which used the one hardcoded Gambini graph) in what's on disk.**
+Worth treating "should Stage A actually be built on `surftri`, for both
+cylinder *and* torus, instead of plain `plantri`" as a live question that
+could also affect SPEC-7's cylinder section above, not a torus-only
+concern.
+
+**SPST and friends.** Per Stuart: `T` (torus) extends the existing
+shape axis the same way `C` (cylinder) did in the section above — so the
+taxonomy becomes (simple/compound) × (perfect/imperfect) × (rectangle/
+square/cylinder/torus). Confirmed name: **SPST** = Simple Perfect Squared
+Torus (the one known example is this type). By direct analogy: **SIST**
+(Simple Imperfect), **CPST**/**CIST** (Compound Perfect/Imperfect), and
+presumably trivial-compound variants (`TCIST` etc.) once compounds are
+findable at all. Given exactly one SPST is known and nothing is known yet
+about the other three, there's no basis for guessing which will turn out
+rare and which common — plane/cylinder both show imperfect and compound
+types vastly outnumbering simple-perfect ones once they appear at all, so
+that pattern (SIST/CIST possibly far more numerous than SPST once real
+search exists) is a reasonable prior, not a conclusion.
+
+**Schema flexibility — a concrete, mechanical gap, true for cylinders too.**
+`dissections.d_type` is `CHECK (d_type IN ('SPSR','SPSS','SISR','SISS',
+'CPSR','CPSS','CISR','CISS'))` — a hardcoded 8-value enum. **Every single
+new type from both this section and SPEC-6/the cylinder section above
+(SPSC/SISC/CPSC/CISC, SPST/SIST/CPST/CIST, plus trivial-compound variants)
+is currently impossible to insert at all** until that constraint is
+widened. This is exactly the flexibility gap Stuart asked about — not a
+future concern, a blocking one the moment any surface or compound row is
+loaded. Cheapest fix is probably just growing the CHECK list as new types
+are confirmed; a lookup table (`d_types(code, simple, perfect, shape)`)
+would be more open-ended if the taxonomy keeps growing (it's already at
+16+ plausible values across rectangle/square/cylinder/torus), worth
+deciding when the CHECK constraint is actually touched rather than now.
+
+**Space constraints, honestly.** Cylinders had a real number to design
+against (explosive but *known* growth). Tori don't yet — one row's worth of
+data. The only design goal that's actually actionable right now is making
+sure the schema doesn't structurally block storing torus rows when they do
+turn up (the `d_type` fix above, plus `surface_type='torus'` already
+existing), not computing a storage budget from a sample size of one.
 
 ## Decision: magnitude-based stopping, per type
 
@@ -130,31 +214,55 @@ anything further.
 5. **`order_counts`**: already getting a `category` column per SPEC-6; needs
    confirmation it also naturally extends to `surface_type`, or whether
    that's a separate key dimension again.
-6. **Tori**: characterize real per-order-per-type counts the same way this
-   session did for cylinders, before any sizing/stopping decision can be
-   made for that surface type. Not started.
-7. **`ref_counts`**: not attempted — no OEIS search done yet for cylinder/
+6. **`d_type` extensibility**: the `CHECK` constraint hardcodes the original
+   8 plane values — blocks inserting *any* cylinder or torus row today,
+   regardless of everything else in this spec. Needs widening (or a lookup
+   table, if the taxonomy keeps growing) before any surface row can load.
+7. **Evaluate `surftri` as the real Stage A generator** for both cylinder
+   and torus (genus 0-with-holes and genus 1 respectively), rather than
+   plain `plantri` for cylinders and a hardcoded one-off script for tori —
+   it's already built for exactly this, unused so far.
+8. **Generalize the torus solver** away from Gambini's one hardcoded graph:
+   needs a Stage-A-style loop over `surftri`-enumerated genus-1 graphs, each
+   fed through the 2D-kernel (alpha/beta) solve `torus_master_solver.sage`
+   already implements for one graph. Real research/engineering work, not a
+   parameter tweak.
+9. **`ref_counts`**: not attempted — no OEIS search done yet for cylinder/
    torus sequences. Same empirical-validation discipline as SPEC-6 applies:
    don't guess.
 
 ## Suggested order of work
 
-1. Confirm `-e{N}a` semantics and whether the sage solver's output can be
-   trusted as-is for real loading, or needs the same kind of scrutiny
+1. **Widen `d_type`'s `CHECK` constraint** (or replace with a lookup table)
+   — cheapest item here, unblocks loading any surface row at all, no
+   dependency on anything else.
+2. Evaluate `surftri` against the existing plain-`plantri` cylinder
+   approach (item 7 above) — decide whether cylinder Stage A should be
+   rebuilt on it before investing further in the current one.
+3. Confirm `-e{N}a` semantics either way, and whether cylinder's sage-solver
+   output can be trusted as-is for real loading or needs the same scrutiny
    SPEC-1's `sqt` got (byte-identical-output verification etc.).
-2. Decide sage-based vs. ported-to-frozen-pipeline (item 2 above) — this
-   gates everything else.
-3. Build the per-type stopping logic.
-4. Characterize tori the same way cylinders were characterized this
-   session, before assuming their growth curve.
-5. Only then: schema decisions (`category`/`surface_type` interaction,
-   `order_counts` key), and a real backfill.
+4. Decide sage-based vs. ported-to-frozen-pipeline for cylinders — gates
+   the rest of that track.
+5. Build cylinder's per-type stopping logic.
+6. For tori — a genuinely separate track, not blocked on 1-5: build a
+   `surftri`-based genus-1 Stage A, then generalize the alpha/beta solver
+   to run over every graph it produces instead of Gambini's one hardcoded
+   example. Only after real per-graph data exists does a stopping/sizing
+   decision become possible — there's nothing to decide yet.
+7. Once both tracks produce real data: `category`/`surface_type`
+   interaction, `order_counts` key, `ref_counts`.
 
 ## Open items carried forward
 - Exact semantic difference between e.g. `SPSR` and `SPSC` (and the other
   paired type names) in the cylinder context — not blocking the sizing
   conclusion, but needed before building a loader that classifies correctly.
-- Torus data is unorganized/exploratory only; no sizing conclusion possible
-  yet for that surface type.
+- Whether cylinder Stage A should be rebuilt on `surftri` instead of plain
+  `plantri` — open question raised by finding `surftri` unused for both
+  surface types.
+- Generalizing the torus solver beyond one hardcoded graph — the actual
+  blocker on ever having real torus enumeration data.
 - Whether cylinder/torus graphs need their own connectivity axis on top of
   `surface_type`, interacting with SPEC-6's `category` column.
+- `d_type` CHECK-constraint vs. lookup-table decision, once it's actually
+  touched.

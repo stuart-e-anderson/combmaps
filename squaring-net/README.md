@@ -1,6 +1,6 @@
 # squaring.net rebuild — project status
 
-**Last updated:** 2026-08-10 (SPEC-6 compound pipeline and SPEC-7 surfaces pipeline scoped)
+**Last updated:** 2026-08-10 (SPEC-6 compound pipeline and SPEC-7 surfaces pipeline scoped, incl. SPST torus taxonomy)
 **North star:** showcase all squared rectangles from graphs with up to 30 edges (includes dodecahedron/icosahedron).
 
 This is a from-scratch rebuild of squaring.net: new generation pipeline, new
