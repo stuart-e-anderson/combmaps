@@ -136,7 +136,14 @@ today; 2 for CISR/CISS) rather than being CPSR/CISR-specific.
 5. **`ref_counts`**: deliberately **not** populated by guessing a symmetry
    convention. CPSR candidates: A217153/A217152 (nontrivial, two
    subrectangle-symmetry conventions), A217374/A217375 (trivial, same two
-   conventions) — starts at order 13. CPSS candidates: A217155 (square
+   conventions) — starts at order 13. **Note (2026-08-10, resolved in
+   SPEC-7):** this schema doesn't split trivial/nontrivial into separate
+   `d_type`s — `dissections.is_trivial_compound` is a boolean flag on the
+   single `CPSR`/`CISR`/etc. types instead, and per Stuart trivial compounds
+   are deliberately not backfilled as a full catalog. So the right
+   `ref_counts` comparison for a real `CPSR` count is nontrivial+trivial
+   summed (e.g. A217153+A217375, matching whichever symmetry convention
+   this schema turns out to use), not either alone. CPSS candidates: A217155 (square
    symmetries only), A181340 (square + subrectangle symmetries) — **starts
    at order 24**, confirmed via `A217156` (=SPSS+CPSS: orders 21-23 equal
    the already-loaded SPSS-only values exactly, i.e. CPSS=0 there; order 24

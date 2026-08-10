@@ -8,7 +8,9 @@
 -- Schema diet from SPEC-1 Stage C: no `elements` (derive from bouwkamp_code
 -- at serve time), no `sb_path` (ratio_cf's continued-fraction terms *are*
 -- the Stern-Brocot path). DEGN rows are counted into order_counts and
--- never loaded here, so d_type only carries the eight real types.
+-- never loaded here, so d_type never carries DEGN -- SPEC-7 (2026-08-10)
+-- widened it from the original eight plane types to sixteen, adding
+-- cylinder ('C' shape) and torus ('T' shape) equivalents.
 --
 -- is_crossed / corner_elements / boundary_square_indices are SPEC-4: all
 -- three come from one squaringlib.geometry.place_elements() call per row
@@ -28,6 +30,14 @@ CREATE TABLE dissections (
     simple                   BOOLEAN      NOT NULL,
     perfect                  BOOLEAN      NOT NULL,
     is_square                BOOLEAN      NOT NULL,
+    is_trivial_compound      BOOLEAN      NOT NULL DEFAULT FALSE,  -- SPEC-7/2026-08-10, per Stuart: a compound
+                              -- dissection made by gluing a square whose side equals an existing squared
+                              -- rectangle's full height/width onto that edge. Adds no new pattern beyond the
+                              -- rectangle it was glued to -- "not an important category". Deliberately NOT
+                              -- backfilled as a full catalog (combinatorially trivial/infinite: applicable to
+                              -- any existing dissection); this flag exists so a handful of illustrative
+                              -- examples can be curated for the website, not for exhaustive generation.
+                              -- Only meaningful when d_type is one of the compound types (CHECK below).
     width                    BIGINT       NOT NULL,   -- BIGINT: wheel/surface tilings run Fibonacci-scale dims
     height                   BIGINT       NOT NULL,
     bouwkamp_code            BYTEA        NOT NULL,   -- packed canonical element sequence; order/width/height already columns, not repeated here. Area check (Σ elementᵢ² = width·height) is enforced by the loader at COPY time, not here — it can't be expressed without unpacking the bytea.
@@ -35,7 +45,9 @@ CREATE TABLE dissections (
     is_crossed               BOOLEAN      NOT NULL,   -- SPEC-4: an interior point where 4 squares' corners meet (Smith & Tutte reflex/cross-point)
     corner_elements           SMALLINT[4]  NOT NULL,   -- SPEC-4: [top-left, top-right, bottom-left, bottom-right] square sizes
     boundary_square_indices    SMALLINT[]   NOT NULL,   -- SPEC-4: 1-based positions (in the packed element sequence) of every square touching an outer edge
-    PRIMARY KEY (dissection_id, order_val)
+    PRIMARY KEY (dissection_id, order_val),
+    CONSTRAINT dissections_trivial_compound_implies_compound
+                              CHECK (NOT is_trivial_compound OR NOT simple)
 ) PARTITION BY LIST (order_val);
 
 CREATE TABLE dissections_o05 PARTITION OF dissections FOR VALUES IN (5);

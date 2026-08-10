@@ -223,12 +223,26 @@ anything further.
    total. Smoke-tested: an `SPST` row now passes the `d_type` check (test
    insert only failed on an unrelated NOT NULL column, rolled back, zero
    rows left behind). Deliberately did **not** add `TCISR`/`TCPSR`-style
-   trivial-compound variants seen in the raw cylinder data -- whether
-   trivial-vs-nontrivial compound should be its own `d_type` code (and if
-   so, `CHAR(4)` needs widening too, since `TCISR` is 5 characters) or a
-   separate boolean column is still an open design question, not resolved
-   by this migration. Lookup-table-vs-CHECK-list tradeoff also still open,
-   deferred until the taxonomy grows past these 16.
+   trivial-compound variants as separate `d_type` codes -- resolved
+   2026-08-10 (below) as a boolean column instead. Lookup-table-vs-CHECK-list
+   tradeoff for `d_type` itself still open, deferred until the taxonomy
+   grows past these 16.
+6b. **`is_trivial_compound` — done 2026-08-10.** Per Stuart: a trivial
+   compound is a square whose side equals an *existing* squared rectangle's
+   full height or width, glued onto that edge -- it adds no new pattern
+   beyond the rectangle it was glued to, and is applicable to *any* existing
+   dissection, so a full catalog would be both infinite and uninteresting
+   ("not an important category"). Confirmed this is the general concept
+   behind the `TCISR`/`TCPSR` folders in the raw cylinder data, not
+   cylinder-specific -- the plane CPSR discussion in SPEC-6 hit the same
+   concept via A217374/A217375 ("trivially compound"). Added
+   `dissections.is_trivial_compound BOOLEAN NOT NULL DEFAULT FALSE` (live DB
+   + schema file) rather than more `d_type` codes, with a `CHECK
+   (NOT is_trivial_compound OR NOT simple)` tying it to the compound types
+   only -- smoke-tested both the rejection (simple=true + trivial=true
+   correctly errors) and acceptance case, both rolled back. Intent,
+   per Stuart: **not** a backfilled catalog -- just enough structure to
+   flag a handful of curated illustrative examples for the website.
 7. **Evaluate `surftri` as the real Stage A generator** for both cylinder
    and torus (genus 0-with-holes and genus 1 respectively), rather than
    plain `plantri` for cylinders and a hardcoded one-off script for tori —
