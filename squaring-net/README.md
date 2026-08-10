@@ -1,6 +1,6 @@
 # squaring.net rebuild — project status
 
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-10
 **North star:** showcase all squared rectangles from graphs with up to 30 edges (includes dodecahedron/icosahedron).
 
 This is a from-scratch rebuild of squaring.net: new generation pipeline, new
@@ -182,11 +182,31 @@ flask run
 
 - **`squaringlib.electrical`, `.queries`** — still stub `__init__.py` files
   only (docstring, no implementation); `.render` is no longer a stub (see above)
-- **`ref_counts` catalogue** — SPEC-2 §5 still needs the table actually
-  populated (OEIS A002839 values now confirmed correct through order 21 via
-  this build's investigation — see above — but not yet inserted as rows)
-- **`order_counts.status` sign-off** — every loaded order is still `'pending'`;
-  marking `'committed'` is a deliberate gate-procedure step, not yet run
+- **`ref_counts` catalogue — SPSR only.** Populated 2026-08-10 with OEIS A002839
+  (orders 9-24, independently re-fetched and cross-checked against
+  squaring.net's own old `spsr.html` catalogue page, both agree). The other
+  seven `d_type`s (SPSS, SISR, SISS, CPSR, CPSS, CISR, CISS) are deliberately
+  **not** filled yet — each needs its own OEIS sequence identified and
+  cross-checked (candidates seen: A002962, A181340, A220165/A220166,
+  A217156 — none confirmed to map cleanly to a single `d_type` yet, and
+  SPEC-2's own history (the order-24 228,130,900 vs 228,130,926 slip) is a
+  standing warning against guessing here). Needs a dedicated pass with
+  Stuart confirming each sequence before inserting.
+- **`order_counts.status` sign-off — orders 7, 9-21 done 2026-08-10.** Ran
+  the full SPEC-2 gate procedure (§3 upper-bound, §4a-d structural checks
+  including a full 7.36M-row area-code audit — 78s, zero violations, done
+  in SQL against `convert_from(bouwkamp_code,'UTF8')` since bouwkamp_code
+  turned out to be plain text-in-bytea, not a binary pack — §5 SPSR assert,
+  §6 Duijvestijn regression) against the already-loaded data. All green.
+  One expected, non-corruption §5 "delta": order 21's raw `SPSR` count is
+  4,931,307, one short of the OEIS 4,931,308 term, because the order-21
+  Duijvestijn 112² is stored as `d_type='SPSS'` (it's a literal square) —
+  SPSR+SPSS = 4,931,308 exactly, matching the documented convention that a
+  square counts toward the rectangle sequence at order 21. Orders 5, 6, 8
+  left `'pending'`: trivial/incidental (0-2 graphs, no real dissections,
+  not part of the deliberate 7/9-21 backfill scope) — nothing meaningful
+  to gate. Indexes were already valid on every partition (declared in
+  `db/schema/dissections.sql` before load), so no index build was needed.
 - **Order 22 Stage B/C** — Stage A (graph enumeration) is done and sharded
   successfully (see below); solving (`sqt`) and loading haven't run yet —
   order 22's classes are ~3.4x more graphs than order 21's, so this is a
@@ -210,12 +230,13 @@ built on the buggy enumeration). Schema is applied from `db/schema/*.sql` in
 order: `graphs.sql`, `graph_names.sql`, `dissections.sql`, `reconciliation.sql`.
 
 Currently loaded (graphs + dissections): orders 7, 9-21 (the full
-originally-scoped backfill range, all passing the SPEC-2 upper-bound gate).
-Order 22's graphs are also generated on disk (`data/planar_code/order=22/`,
-1,645,576 graph rows) but not yet solved or loaded into Postgres. All loaded
-orders' `order_counts.status = 'pending'` — none formally marked
-`'committed'` yet (that's the last step of the SPEC-2 gate procedure, not
-yet run as a deliberate sign-off pass).
+originally-scoped backfill range), **all passing the full SPEC-2 gate and
+marked `order_counts.status = 'committed'` as of 2026-08-10** (see "Not
+built yet" above for the gate run details). Orders 5, 6, 8 also have rows
+(incidental small-order data, left `'pending'`, not part of the scoped
+backfill). Order 22's graphs are also generated on disk
+(`data/planar_code/order=22/`, 1,645,576 graph rows) but not yet solved or
+loaded into Postgres.
 
 ## Environment
 
